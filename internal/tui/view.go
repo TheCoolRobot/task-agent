@@ -97,7 +97,7 @@ func (m Model) viewHeader() string {
 	// BorderBottom = 1 extra row → total headerRows = 2
 	return lipgloss.NewStyle().
 		Width(m.width).
-		Background(colorBg).
+		//Background(colorBg).
 		BorderBottom(true).BorderStyle(lipgloss.NormalBorder()).BorderForeground(colorBorder).
 		Render(logo + badge + spin)
 }
