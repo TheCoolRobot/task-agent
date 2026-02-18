@@ -50,11 +50,11 @@ checksum:
   algorithm: sha256
 
 snapshot:
-  version_template: "{{ incpatch .Version }}-next"
+  name_template: "{{ incpatch .Version }}-next"  # v2: was version_template
 
 changelog:
   sort: asc
-  use: git
+  use: github  # v2: only github/gitlab/gitea/simple are valid; 'git' was removed
   filters:
     exclude:
       - "^docs:"
@@ -83,7 +83,7 @@ brews:
       name: goreleaserbot
       email: bot@goreleaser.com
     commit_msg_template: "chore: brew formula update for {{ .ProjectName }} {{ .Tag }}"
-    directory: Formula
+    folder: Formula  # v2: was 'directory'
     homepage: "https://github.com/{{ .Env.GITHUB_OWNER }}/task-agent"
     description: "YOLO AI Task Executor for Asana — Bubble Tea TUI"
     license: MIT
