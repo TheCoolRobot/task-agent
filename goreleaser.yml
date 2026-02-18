@@ -83,11 +83,13 @@ brews:
       name: goreleaserbot
       email: bot@goreleaser.com
     commit_msg_template: "chore: brew formula update for {{ .ProjectName }} {{ .Tag }}"
-    folder: Formula  # v2: was 'directory'
+    directory: Formula
     homepage: "https://github.com/{{ .Env.GITHUB_OWNER }}/task-agent"
     description: "YOLO AI Task Executor for Asana — Bubble Tea TUI"
     license: MIT
     skip_upload: auto
+    dependencies:
+      - name: thecoolrobot/asana-cli/asana-cli
     install: |
       bin.install "task-agent"
     test: |

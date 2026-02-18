@@ -26,7 +26,7 @@ class TaskAgent < Formula
     end
   end
 
-  depends_on "thecoolrobot/asana-cli/asana-cli" => :optional
+  depends_on "thecoolrobot/asana-cli/asana-cli"
 
   def install
     bin.install "task-agent"
