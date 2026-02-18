@@ -12,30 +12,31 @@ Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) + [Lip Gloss
 
 ```
 ⚡ task-agent  anthropic / claude-sonnet-4-6  ⠋
-──────────────────────────────────────────────────────────────
-┌──────────────────────┐ ┌───────────────────────────────────┐
-│ Tasks (3)            │ │ Task Details                      │
-│                      │ │                                   │
-│ ⏳ 🔴 Fix JWT bug    │ │ Fix JWT token expiry bug          │
-│ ⏳ 🟡 Write blog     │ │                                   │
-│ ✅    Deploy v2      │ │ ID: task-001                      │
-│                      │ │ Status: ⏳ Incomplete             │
-│                      │ │ Priority: high                    │
-│                      │ │ Due: 2026-03-01                   │
-│                      │ │ Assignee: Alice Dev               │
-│                      │ │                                   │
-│                      │ │ Description:                      │
-│                      │ │   Tokens expiring 30min early     │
-│                      │ │   due to timezone mismatch...     │
-│                      ├─┼───────────────────────────────────┤
-│                      │ │ Model › Providers [Tab=models]    │
-│                      │ │                                   │
-│                      │ │ ▶ Anthropic                       │
-│                      │ │   OpenAI                          │
-│                      │ │   Groq                            │
-│                      │ │   Ollama (Local)                  │
-└──────────────────────┘ └───────────────────────────────────┘
- ↑↓ nav · Enter execute · Tab switch pane · / search · q quit
+──────────────────────────────────────────────────────────────────────
+┌────────────────────────┐ ┌─────────────────────────────────────────┐
+│ Tasks (3)              │ │ Task Details                            │
+│                        │ │                                         │
+│ ⏳ 🔴 Fix JWT bug      │ │ Fix JWT token expiry bug                │
+│ ⏳ 🟡 Write blog post  │ │                                         │
+│ ✅    Deploy v2        │ │ ID:       task-001                      │
+│                        │ │ Status:   ⏳ Incomplete                 │
+│                        │ │ Priority: high                          │
+│                        │ │ Due:      2026-03-01                    │
+│                        │ │ Assignee: Alice Dev                     │
+│                        │ │                                         │
+│                        │ │ Description:                            │
+│                        │ │   Tokens expiring 30min early due to    │
+│                        │ │   timezone mismatch in JWT validation   │
+│                        ├─┼─────────────────────────────────────────┤
+│                        │ │ Model › Providers  [Tab→models]         │
+│                        │ │                                         │
+│                        │ │ ▶ Anthropic                             │
+│                        │ │   OpenAI                                │
+│                        │ │   Groq                                  │
+│                        │ │   Moonshot (Kimi)                       │
+│                        │ │   Ollama (Local)                        │
+└────────────────────────┘ └─────────────────────────────────────────┘
+ ↑↓/jk nav · Enter execute · Tab pane · / search · C config · T theme · q quit
 ✅ Loaded 3 tasks
 ```
 
@@ -47,30 +48,31 @@ Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) + [Lip Gloss
 
 - Go 1.22+
 - [`asana-cli`](https://github.com/TheCoolRobot/asana-cli) in your PATH
-- `ASANA_TOKEN` environment variable
+- `ASANA_TOKEN` environment variable set
 - At least one AI provider API key
 
-### Build
+### Homebrew (recommended)
 
 ```bash
-git clone https://github.com/you/task-agent.git
-cd task-agent
-
-# Download dependencies
-go mod download
-
-# Build
-make build
-# Binary: ./bin/task-agent
-
-# Or install globally
-make install
+brew tap TheCoolRobot/task-agent
+brew install task-agent
+# asana-cli is installed automatically as a dependency
 ```
 
-### Quick install with Go
+### Build from source
 
 ```bash
-go install github.com/you/task-agent/cmd/task-agent@latest
+git clone https://github.com/TheCoolRobot/task-agent.git
+cd task-agent
+
+# One-shot: resolves deps, generates go.sum, builds binary
+./bootstrap.sh
+# Binary: ./bin/task-agent
+
+# Or step by step:
+go mod tidy     # resolves deps + writes go.sum
+make build      # compiles binary
+make install    # copies to /usr/local/bin
 ```
 
 ---
@@ -78,18 +80,16 @@ go install github.com/you/task-agent/cmd/task-agent@latest
 ## Quick Start
 
 ```bash
-# 1. First-time setup (workspace, project, API keys)
+# 1. First-time setup (workspace GID, project GID, API keys, theme)
 task-agent config
 
-# 2. Launch TUI (default command)
+# 2. Launch TUI
 task-agent
-# or explicitly:
-task-agent tui
 
-# 3. Run a task directly (no TUI)
+# 3. Run a task directly without the TUI
 task-agent run <task-gid>
 
-# 4. With a specific provider/model
+# 4. Override provider/model for a single run
 task-agent run <task-gid> --provider groq --model llama-3.3-70b-versatile
 ```
 
@@ -101,13 +101,15 @@ task-agent run <task-gid> --provider groq --model llama-3.3-70b-versatile
 
 | Key | Action |
 |-----|--------|
-| `↑` / `↓` or `j` / `k` | Navigate tasks or model list |
-| `Enter` | **Execute task** (tasks pane) or **confirm selection** (model pane) |
-| `Tab` | Cycle panes: Tasks → Model Providers → Model Names → Log |
-| `/` | Search tasks (Asana API or local filter) |
-| `C` | Open full **Config screen** |
-| `L` | Switch to execution log |
+| `↑` `↓` or `j` `k` | Navigate tasks / provider / model list |
+| `Enter` | **Execute task** (tasks pane) · confirm selection (model pane) |
+| `Tab` | Cycle panes: Tasks → Providers → Models → Log |
+| `/` | Search tasks (Asana API, falls back to local filter) |
+| `C` | Open **Config screen** |
+| `T` | Cycle through themes live |
+| `L` | View execution log |
 | `r` | Refresh task list from Asana |
+| `Esc` | Return to tasks pane |
 | `q` | Quit (config auto-saved) |
 
 ### Config screen (`C`)
@@ -115,79 +117,104 @@ task-agent run <task-gid> --provider groq --model llama-3.3-70b-versatile
 | Key | Action |
 |-----|--------|
 | `Tab` / `Shift-Tab` | Move between fields |
-| `←` / `→` or `Enter` | Cycle option fields (provider) |
+| `←` `→` | Cycle through options (provider, theme) |
 | Type | Edit text fields (GIDs, API keys, output dir) |
-| `Ctrl-S` | **Save config** and return |
-| `Esc` | Cancel without saving |
+| `Ctrl-S` | **Save and close** |
+| `Esc` | Discard changes |
+
+---
+
+## Themes
+
+Switch themes live with `T`, or set permanently in the config screen.
+
+| Theme | Description |
+|-------|-------------|
+| `dark` | GitHub dark *(default)* |
+| `light` | GitHub light |
+| `homebrew` | Deep amber on near-black |
+| `dracula` | Purple & pink on charcoal |
+| `solarized` | Classic Ethan Schoonover dark |
+| `nord` | Arctic blue-grey |
+| `monokai` | Sublime Text classic |
+
+Persisted to `~/.task-agent/config.json` as `"theme": "nord"`.
 
 ---
 
 ## AI Providers
 
-| Provider | Models | API Key |
-|----------|--------|---------|
+| Provider | Models | API Key Env Var |
+|----------|--------|-----------------|
 | **Anthropic** | claude-opus-4-6, claude-sonnet-4-6, claude-haiku-4-5 | `ANTHROPIC_API_KEY` |
-| **OpenAI** | gpt-4o, gpt-4o-mini, o1, o3-mini | `OPENAI_API_KEY` |
-| **Groq** | llama-3.3-70b-versatile, mixtral-8x7b, gemma2-9b | `GROQ_API_KEY` |
-| **Ollama** | llama3.3, qwen2.5-coder, mistral, codellama | *(none, runs locally)* |
+| **OpenAI** | gpt-4o, gpt-4o-mini, gpt-4-turbo, o1, o3-mini | `OPENAI_API_KEY` |
+| **Groq** | llama-3.3-70b-versatile, llama-3.1-8b-instant, mixtral-8x7b, gemma2-9b | `GROQ_API_KEY` |
+| **Moonshot (Kimi)** | kimi-k2-0711-preview, moonshot-v1-8k/32k/128k | `MOONSHOT_API_KEY` |
+| **Ollama** | llama3.3, llama3.1, qwen2.5-coder, mistral, codellama, phi4 | *(none — local)* |
+
+Environment variables always take precedence over keys stored in config.
 
 ```bash
-# Set via environment
 export ANTHROPIC_API_KEY=sk-ant-...
 export OPENAI_API_KEY=sk-...
 export GROQ_API_KEY=gsk_...
+export MOONSHOT_API_KEY=sk-...
+```
 
-# Or store in config (encrypted at rest is your responsibility)
-task-agent config
+Switch providers and models interactively with `Tab` in the TUI, or pass flags at the CLI:
+
+```bash
+task-agent run <gid> -p moonshot -m kimi-k2-0711-preview
 ```
 
 ---
 
 ## YOLO Mode
 
-When you hit `Enter` on a task, the agent:
+When you press `Enter` on a task, the agent:
 
 1. Formats the full task as markdown (name, description, priority, due date, tags, assignee)
-2. Sends it to your selected AI with a system prompt: *"execute completely, produce real files, make decisions, don't ask for permission"*
-3. AI responds with structured JSON containing file paths + content
-4. Files are written to `./task-outputs/<timestamp>_<task-name>/`
+2. Sends it to the selected AI with the system prompt: *"execute completely, produce real files, make decisions, don't ask for permission"*
+3. Streams live progress into the log panel as the AI responds
+4. Parses the structured JSON response (output type, files, summary, notes)
+5. Writes all files to `./task-outputs/<timestamp>_<task-name>/`
 
 ### Output structure
 
 ```
 task-outputs/
-└── 20260217_143022_Fix_JWT_token_expiry_bug/
-    ├── AGENT_MANIFEST.md       ← Summary, file index, notes
+└── 20260301_143022_Fix_JWT_token_expiry_bug/
+    ├── AGENT_MANIFEST.md       ← Summary, file index, agent notes
     ├── auth/
     │   ├── jwt.go              ← Generated fix
-    │   └── jwt_test.go         ← Tests
-    └── README.md               ← Task-specific docs
+    │   └── jwt_test.go         ← Tests included automatically
+    └── README.md
 ```
 
-The AI decides the output type (`markdown`, `code_folder`, or `mixed`) based on the task content.
+The AI picks the output type (`markdown`, `code_folder`, or `mixed`) based on the task.
 
 ---
 
 ## CLI Reference
 
 ```bash
-task-agent                          # Launch TUI (default)
-task-agent tui                      # Launch TUI explicitly
-task-agent run <gid>                # Execute task by GID
-task-agent run <gid> -p openai -m gpt-4o  # With specific model
-task-agent list                     # List tasks (table)
-task-agent list --json              # List tasks (JSON)
-task-agent search "auth bug"        # Search tasks
-task-agent search "fix" -w <ws>    # Search in workspace
-task-agent config                   # Interactive setup
-task-agent providers                # Show providers + key status
+task-agent                              # Launch TUI (default)
+task-agent tui                          # Launch TUI explicitly
+task-agent run <gid>                    # Execute task by GID
+task-agent run <gid> -p openai -m gpt-4o
+task-agent list                         # List tasks (table)
+task-agent list --json                  # List tasks (JSON)
+task-agent search "auth bug"            # Search tasks
+task-agent search "fix" -w <ws-gid>    # Search in specific workspace
+task-agent config                       # Interactive setup wizard
+task-agent providers                    # Show all providers + API key status
 ```
 
 ---
 
 ## Configuration
 
-Stored at `~/.task-agent/config.json` (permissions: `0600`):
+Stored at `~/.task-agent/config.json` (permissions `0600`):
 
 ```json
 {
@@ -196,14 +223,15 @@ Stored at `~/.task-agent/config.json` (permissions: `0600`):
   "provider":      "anthropic",
   "model":         "claude-sonnet-4-6",
   "output_dir":    "./task-outputs",
+  "theme":         "dark",
   "api_keys": {
     "anthropic": "sk-ant-...",
-    "openai":    "sk-..."
+    "openai":    "sk-...",
+    "groq":      "gsk_...",
+    "moonshot":  "sk-..."
   }
 }
 ```
-
-Environment variables always take precedence over stored keys.
 
 ---
 
@@ -211,19 +239,32 @@ Environment variables always take precedence over stored keys.
 
 ```
 task-agent/
-├── cmd/task-agent/main.go    ← Cobra CLI entry point
+├── cmd/task-agent/main.go        ← Cobra CLI entry point
 ├── internal/
-│   ├── ai/providers.go       ← Anthropic + OpenAI-compat HTTP clients
-│   ├── asana/client.go       ← asana-cli subprocess wrapper
-│   ├── config/config.go      ← ~/.task-agent/config.json
-│   ├── output/writer.go      ← Writes AI result files to disk
+│   ├── ai/providers.go           ← Multi-provider HTTP clients (Anthropic + OpenAI-compat)
+│   ├── asana/client.go           ← asana-cli subprocess wrapper
+│   ├── config/config.go          ← ~/.task-agent/config.json
+│   ├── output/writer.go          ← Writes AI result files + manifest to disk
 │   └── tui/
-│       ├── model.go          ← Bubble Tea Model + Update
-│       ├── view.go           ← Bubble Tea View rendering
-│       └── styles.go         ← Lip Gloss styles
+│       ├── model.go              ← Bubble Tea Model, Update, key handlers
+│       ├── view.go               ← Bubble Tea View rendering
+│       └── styles.go             ← Lip Gloss theme system (7 themes)
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml                ← Build matrix + GoReleaser dry run
+│   │   └── release.yml           ← Tag-triggered release + Homebrew tap update
+│   └── HOMEBREW_SETUP.md         ← Tap wiring guide
+├── .goreleaser.yaml              ← Cross-platform build + brew formula
+├── bootstrap.sh                  ← First-time dependency + build script
 ├── go.mod
 └── Makefile
 ```
+
+---
+
+## Homebrew Tap Setup
+
+After a tagged release, the formula in `TheCoolRobot/homebrew-task-agent` is updated automatically by GoReleaser. See [`.github/HOMEBREW_SETUP.md`](.github/HOMEBREW_SETUP.md) for the one-time wiring instructions (tap repo creation + `TAP_GITHUB_TOKEN` secret).
 
 ---
 
