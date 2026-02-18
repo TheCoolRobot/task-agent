@@ -58,7 +58,7 @@ var Providers = []Provider{
 	{
 		ID:           "ollama",
 		Name:         "Ollama (Local)",
-		Models:       []string{"llama3.3", "llama3.1", "qwen2.5-coder", "mistral", "codellama", "phi4"},
+		Models:       []string{"llama3.3", "llama3.1", "qwen2.5-coder", "mistral", "codellama", "phi4","gemma3:1b"},
 		DefaultModel: "llama3.3",
 		EnvKey:       "",
 		BaseURL:      "http://localhost:11434/v1",

@@ -76,12 +76,18 @@ func (m Model) View() string {
 	}
 	body = strings.Join(bodyLines, "\n")
 
-	return strings.Join([]string{
+	full := strings.Join([]string{
 		m.viewHeader(),
 		body,
 		m.viewStatusBar(),
 		m.viewKeybinds(),
 	}, "\n")
+
+	// Paint the entire terminal canvas dark
+	return lipgloss.NewStyle().
+		Width(m.width).Height(m.height).
+		Background(colorBg).
+		Render(full)
 }
 
 // ─── Header ──────────────────────────────────────────────────────────────────
@@ -97,7 +103,7 @@ func (m Model) viewHeader() string {
 	// BorderBottom = 1 extra row → total headerRows = 2
 	return lipgloss.NewStyle().
 		Width(m.width).
-		//Background(colorBg).
+		Background(colorBg).
 		BorderBottom(true).BorderStyle(lipgloss.NormalBorder()).BorderForeground(colorBorder).
 		Render(logo + badge + spin)
 }

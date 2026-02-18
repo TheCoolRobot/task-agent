@@ -72,8 +72,9 @@ var configFields = []configField{
 	{label: "OpenAI API key",    key: "api_openai",    secret: true},
 	{label: "Groq API key",      key: "api_groq",      secret: true},
 	{label: "Moonshot API key",  key: "api_moonshot",  secret: true},
-	{label: "AI Provider",       key: "provider",      options: []string{"anthropic", "openai", "groq", "ollama"}},
+	{label: "AI Provider",       key: "provider",      options: []string{"anthropic", "openai", "groq", "moonshot", "ollama"}},
 	{label: "Model",             key: "model"},
+	{label: "Theme",             key: "theme",         options: []string{"dark", "light", "homebrew", "dracula", "solarized", "nord", "monokai"}},
 }
 
 // ─── Model ───────────────────────────────────────────────────────────────────
@@ -115,6 +116,9 @@ type Model struct {
 	spinner   spinner.Model
 	loading   bool
 	executing bool
+
+	// Theme
+	themeIdx int
 
 	// Status bar
 	statusMsg  string
@@ -186,6 +190,16 @@ func New(cfg *config.Config, client *asana.Client) Model {
 		cfgInputs[i] = ti
 	}
 
+	// Find initial theme index
+	themeIdx := 0
+	for i, t := range Themes {
+		if t.Name == cfg.Theme {
+			themeIdx = i
+			break
+		}
+	}
+	setTheme(Themes[themeIdx])
+
 	// Find initial model cursor for provider
 	provCursor, modelCursor := 0, 0
 	for i, p := range ai.Providers {
@@ -207,6 +221,7 @@ func New(cfg *config.Config, client *asana.Client) Model {
 		searchInput:   si,
 		cfgInputs:     cfgInputs,
 		cfgOptCursors: cfgOptCursors,
+		themeIdx:      themeIdx,
 		statusMsg:     "Loading tasks...",
 		statusKind:    "loading",
 		loading:       true,
@@ -389,6 +404,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "l", "L":
 		m.activePane = paneLog
+
+	case "t", "T":
+		m.themeIdx = (m.themeIdx + 1) % len(Themes)
+		setTheme(Themes[m.themeIdx])
+		m.cfg.Theme = Themes[m.themeIdx].Name
+		m.statusMsg = "Theme: " + Themes[m.themeIdx].Name
+		m.statusKind = "ok"
 	}
 
 	return m, nil
@@ -497,6 +519,16 @@ func (m *Model) saveAllConfigFields() {
 				if provDef, ok := ai.GetProvider(m.cfg.Provider); ok {
 					m.cfg.Model = provDef.DefaultModel
 				}
+			case "theme":
+				name := f.options[m.cfgOptCursors[i]]
+				m.cfg.Theme = name
+				for idx, t := range Themes {
+					if t.Name == name {
+						m.themeIdx = idx
+						setTheme(t)
+						break
+					}
+				}
 			}
 		} else {
 			m.saveConfigField(i)
@@ -522,6 +554,13 @@ func (m *Model) refreshConfigInputs() {
 		if f.key == "provider" {
 			for j, opt := range f.options {
 				if opt == m.cfg.Provider {
+					m.cfgOptCursors[i] = j
+				}
+			}
+		}
+		if f.key == "theme" {
+			for j, opt := range f.options {
+				if opt == m.cfg.Theme {
 					m.cfgOptCursors[i] = j
 				}
 			}

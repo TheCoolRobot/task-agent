@@ -17,6 +17,7 @@ type Config struct {
 	APIKeys           map[string]string `json:"api_keys"`
 	AsanaCLIPath      string            `json:"asana_cli_path"`
 	AutoCompleteTasks bool              `json:"auto_complete_tasks"`
+	Theme             string            `json:"theme"`
 }
 
 var configDir = filepath.Join(mustHomeDir(), ".task-agent")
@@ -36,6 +37,7 @@ func Defaults() *Config {
 		Provider:  "anthropic",
 		Model:     "claude-sonnet-4-6",
 		OutputDir: "./task-outputs",
+		Theme:     "dark",
 		APIKeys:   map[string]string{},
 	}
 }
