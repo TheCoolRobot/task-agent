@@ -48,6 +48,14 @@ var Providers = []Provider{
 		BaseURL:      "https://api.groq.com/openai/v1",
 	},
 	{
+		ID:           "moonshot",
+		Name:         "Moonshot (Kimi)",
+		Models:       []string{"kimi-k2-0711-preview", "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"},
+		DefaultModel: "kimi-k2-0711-preview",
+		EnvKey:       "MOONSHOT_API_KEY",
+		BaseURL:      "https://api.moonshot.cn/v1",
+	},
+	{
 		ID:           "ollama",
 		Name:         "Ollama (Local)",
 		Models:       []string{"llama3.3", "llama3.1", "qwen2.5-coder", "mistral", "codellama", "phi4"},

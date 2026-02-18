@@ -88,7 +88,7 @@ brews:
     homepage: "https://github.com/{{ .Env.GITHUB_OWNER }}/task-agent"
     description: "YOLO AI Task Executor for Asana — Bubble Tea TUI"
     license: MIT
-    skip_upload: auto
+    skip_upload: false
     dependencies:
       - name: thecoolrobot/asana-cli/asana-cli
     install: |
@@ -102,7 +102,7 @@ release:
     name: task-agent
   name_template: "v{{ .Version }}"
   draft: false
-  prerelease: auto
+  prerelease: false
   header: |
     ## task-agent {{ .Tag }}
 

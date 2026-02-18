@@ -6,8 +6,7 @@ on:
       - "v*.*.*"
 
 permissions:
-  contents: write  # needed to create GitHub releases
-  packages: write  # needed if publishing to GHCR
+  contents: write
 
 jobs:
   goreleaser:
@@ -17,7 +16,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # GoReleaser needs full history for changelog
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -26,11 +25,21 @@ jobs:
           cache: true
 
       - name: Verify Go modules
-        run: go mod tidy && git diff --exit-code go.sum
+        run: go mod tidy && git diff --exit-code
 
       - name: Run tests
         run: go test ./... -v -race
-        continue-on-error: true  # Don't block release if no tests yet
+        continue-on-error: true
+
+      - name: Check TAP_GITHUB_TOKEN is set
+        run: |
+          if [ -z "${{ secrets.TAP_GITHUB_TOKEN }}" ]; then
+            echo "❌ TAP_GITHUB_TOKEN secret is not set — brew tap will not be updated"
+            echo "   Go to: Settings → Secrets and variables → Actions → New repository secret"
+            echo "   Name: TAP_GITHUB_TOKEN"
+            exit 1
+          fi
+          echo "✅ TAP_GITHUB_TOKEN is set"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6

@@ -16,6 +16,7 @@ import (
 	"github.com/thecoolrobot/task-agent/internal/output"
 )
 
+
 // ─── Pane IDs ────────────────────────────────────────────────────────────────
 
 type pane int
@@ -70,6 +71,7 @@ var configFields = []configField{
 	{label: "Anthropic API key", key: "api_anthropic", secret: true},
 	{label: "OpenAI API key",    key: "api_openai",    secret: true},
 	{label: "Groq API key",      key: "api_groq",      secret: true},
+	{label: "Moonshot API key",  key: "api_moonshot",  secret: true},
 	{label: "AI Provider",       key: "provider",      options: []string{"anthropic", "openai", "groq", "ollama"}},
 	{label: "Model",             key: "model"},
 }
@@ -168,6 +170,8 @@ func New(cfg *config.Config, client *asana.Client) Model {
 			ti.SetValue(cfg.APIKeys["openai"])
 		case "api_groq":
 			ti.SetValue(cfg.APIKeys["groq"])
+		case "api_moonshot":
+			ti.SetValue(cfg.APIKeys["moonshot"])
 		case "provider":
 			// find cursor for current provider
 			for j, opt := range f.options {
@@ -478,6 +482,8 @@ func (m *Model) saveConfigField(idx int) {
 		config.SetAPIKey(m.cfg, "openai", val)
 	case "api_groq":
 		config.SetAPIKey(m.cfg, "groq", val)
+	case "api_moonshot":
+		config.SetAPIKey(m.cfg, "moonshot", val)
 	}
 }
 
@@ -506,6 +512,7 @@ func (m *Model) refreshConfigInputs() {
 		"api_anthropic": m.cfg.APIKeys["anthropic"],
 		"api_openai":    m.cfg.APIKeys["openai"],
 		"api_groq":      m.cfg.APIKeys["groq"],
+		"api_moonshot":  m.cfg.APIKeys["moonshot"],
 		"model":         m.cfg.Model,
 	}
 	for i, f := range configFields {
