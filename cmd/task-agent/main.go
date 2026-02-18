@@ -51,7 +51,7 @@ func doExecute(task *asana.Task, providerID, model, outDir string, cfg *config.C
 	}
 	fmt.Printf("🤖 Provider : %s / %s\n", providerID, model)
 	fmt.Printf("📋 Task     : %s\n", task.Name)
-	fmt.Println("⚡ Running in YOLO mode...\n")
+	fmt.Println("⚡ Running in YOLO mode...")
 	client := ai.NewClient(providerID, model, apiKey)
 	taskMD := asana.FormatTaskMarkdown(task)
 	result, err := client.ExecuteTask(taskMD, func(msg string) { fmt.Println(" →", msg) })
