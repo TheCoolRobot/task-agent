@@ -53,6 +53,10 @@ jobs:
         with:
           version: "~> v2"
           args: check
+        env:
+          # goreleaser check evaluates all env templates — these must exist
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          TAP_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: GoReleaser snapshot build
         uses: goreleaser/goreleaser-action@v6
@@ -62,5 +66,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_OWNER: ${{ github.repository_owner }}
-          # Snapshot build never touches the tap, but the var must exist
           TAP_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -31,10 +31,6 @@ builds:
       - -X main.date={{.Date}}
     mod_timestamp: "{{ .CommitTimestamp }}"
 
-# permissions:
-#   contents: write  
-#   packages: write 
-
 archives:
   - id: task-agent
     name_template: >-
@@ -53,12 +49,13 @@ checksum:
   name_template: "checksums.txt"
   algorithm: sha256
 
+# snapshot.name_template is deprecated in v2 — use version_template instead
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"  # v2: was version_template
+  version_template: "{{ incpatch .Version }}-next"
 
 changelog:
   sort: asc
-  use: github  # v2: only github/gitlab/gitea/simple are valid; 'git' was removed
+  use: github
   filters:
     exclude:
       - "^docs:"
