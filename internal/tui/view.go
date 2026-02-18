@@ -12,16 +12,26 @@ import (
 	"github.com/thecoolrobot/task-agent/internal/config"
 )
 
+// Row budget constants — every pixel accounted for.
+const (
+	headerRows   = 2 // text line + bottom border
+	statusRows   = 1
+	keybindRows  = 1
+	fixedRows    = headerRows + statusRows + keybindRows // = 4
+	borderRows   = 2 // top + bottom border on each panel
+)
+
+// ─── Top-level View ──────────────────────────────────────────────────────────
 
 func (m Model) View() string {
-	if m.width == 0 {
+	if m.width == 0 || m.height == 0 {
 		return "Initializing…"
 	}
 	if m.width < 60 || m.height < 10 {
-		return lipgloss.NewStyle().Padding(1, 2).Render("Terminal too small — please resize!")
+		return lipgloss.Place(m.width, m.height,
+			lipgloss.Center, lipgloss.Center,
+			"Terminal too small — please resize!")
 	}
-
-	// Full-screen modes
 	if m.searching {
 		return m.viewSearchOverlay()
 	}
@@ -29,51 +39,62 @@ func (m Model) View() string {
 		return m.viewConfigScreen()
 	}
 
-	// Main 3-panel layout
+	// bodyH is the exact number of terminal rows the panels can occupy,
+	// including their own borders.
+	bodyH  := m.height - fixedRows
 	leftW  := m.width * 42 / 100
-	rightW := m.width - leftW - 1
-	bodyH  := m.height - 3 // header(1) + statusbar(1) + keybinds(1)
+	rightW := m.width - leftW
 
+	// Right column splits into detail + model; both borders included in budget.
 	detailH := bodyH * 60 / 100
-	modelH  := bodyH - detailH
+	if detailH < borderRows+1 {
+		detailH = borderRows + 1
+	}
+	modelH := bodyH - detailH
+	if modelH < borderRows+1 {
+		modelH = borderRows + 1
+	}
 
-	left   := m.viewTaskList(leftW, bodyH)
-	detail := m.viewDetail(rightW, detailH)
-	model  := m.viewModelPane(rightW, modelH)
+	left := m.viewTaskList(leftW, bodyH)
 
-	right := detail
+	var right string
 	if m.activePane == paneLog {
 		right = m.viewLogPanel(rightW, bodyH)
 	} else {
-		right = lipgloss.JoinVertical(lipgloss.Left, detail, model)
+		right = lipgloss.JoinVertical(lipgloss.Left,
+			m.viewDetail(rightW, detailH),
+			m.viewModelPane(rightW, modelH),
+		)
 	}
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 
-	return lipgloss.JoinVertical(lipgloss.Left,
+	// Clamp body to exact bodyH rows to prevent overflow
+	bodyLines := strings.Split(body, "\n")
+	if len(bodyLines) > bodyH {
+		bodyLines = bodyLines[:bodyH]
+	}
+	body = strings.Join(bodyLines, "\n")
+
+	return strings.Join([]string{
 		m.viewHeader(),
 		body,
 		m.viewStatusBar(),
 		m.viewKeybinds(),
-	)
+	}, "\n")
 }
 
 // ─── Header ──────────────────────────────────────────────────────────────────
 
 func (m Model) viewHeader() string {
-	logo := lipgloss.NewStyle().
-		Foreground(colorAccent).Bold(true).
-		Render("⚡ task-agent")
-
-	badge := lipgloss.NewStyle().
-		Foreground(colorMuted).
+	logo  := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render("⚡ task-agent")
+	badge := lipgloss.NewStyle().Foreground(colorMuted).
 		Render(fmt.Sprintf("  %s / %s", m.modelPane.activeProvider, m.modelPane.activeModel))
-
 	spin := ""
 	if m.loading || m.executing {
 		spin = "  " + m.spinner.View()
 	}
-
+	// BorderBottom = 1 extra row → total headerRows = 2
 	return lipgloss.NewStyle().
 		Width(m.width).
 		Background(colorBg).
@@ -85,8 +106,16 @@ func (m Model) viewHeader() string {
 
 func (m Model) viewTaskList(w, h int) string {
 	active := m.activePane == paneTasks
-	inner  := w - 2
-	visH   := h - 3
+	box    := borderStyle
+	if active {
+		box = activeBorderStyle
+	}
+
+	// Content rows = panel height minus the 2 border rows minus 1 title row
+	innerH := h - borderRows - 1
+	if innerH < 1 {
+		innerH = 1
+	}
 
 	var rows []string
 	header := sectionStyle.Render("Tasks")
@@ -95,41 +124,42 @@ func (m Model) viewTaskList(w, h int) string {
 	}
 	rows = append(rows, header)
 
-	if m.loading && len(m.tasks) == 0 {
+	switch {
+	case m.loading && len(m.tasks) == 0:
 		rows = append(rows, keyDescStyle.Render("  "+m.spinner.View()+" Loading…"))
-	} else if len(m.filteredTasks) == 0 {
+	case len(m.filteredTasks) == 0:
 		rows = append(rows, keyDescStyle.Render("  No tasks — press r to refresh"))
-	} else {
+	default:
+		shown := 0
 		for i, task := range m.filteredTasks {
-			if i < m.taskScroll || i >= m.taskScroll+visH {
+			if i < m.taskScroll {
 				continue
 			}
-			rows = append(rows, m.renderTaskRow(task, i == m.taskCursor, inner))
+			if shown >= innerH {
+				break
+			}
+			rows = append(rows, m.renderTaskRow(task, i == m.taskCursor, w-2))
+			shown++
+		}
+		total := len(m.filteredTasks)
+		if total > innerH {
+			pct := 0
+			if denom := total - innerH; denom > 0 {
+				pct = 100 * m.taskScroll / denom
+			}
+			rows = append(rows, keyDescStyle.Render(fmt.Sprintf("  ↕ %d%%", pct)))
 		}
 	}
 
-	// Scroll indicator
-	total := len(m.filteredTasks)
-	if total > visH {
-		pct := 100 * m.taskScroll / (total - visH + 1)
-		rows = append(rows, keyDescStyle.Render(fmt.Sprintf("  ↕ %d%%", pct)))
-	}
-
-	box := borderStyle
-	if active {
-		box = activeBorderStyle
-	}
 	return box.Width(w).Height(h).Render(strings.Join(rows, "\n"))
 }
 
 func (m Model) renderTaskRow(task asana.Task, selected bool, maxW int) string {
-	status := task.StatusIcon()
-	pri    := task.PriorityIcon()
-	name   := task.Name
+	name := task.Name
 	if max := maxW - 9; len([]rune(name)) > max && max > 3 {
 		name = string([]rune(name)[:max-1]) + "…"
 	}
-	line := fmt.Sprintf(" %s %s %s", status, pri, name)
+	line := fmt.Sprintf(" %s %s %s", task.StatusIcon(), task.PriorityIcon(), name)
 	switch {
 	case selected:
 		return taskItemSelectedStyle.Width(maxW).Render(line)
@@ -143,8 +173,6 @@ func (m Model) renderTaskRow(task asana.Task, selected bool, maxW int) string {
 // ─── Task Detail Panel ───────────────────────────────────────────────────────
 
 func (m Model) viewDetail(w, h int) string {
-	box := borderStyle
-
 	var rows []string
 	rows = append(rows, sectionStyle.Render("Task Details"))
 
@@ -154,7 +182,7 @@ func (m Model) viewDetail(w, h int) string {
 		rows = append(rows, m.renderDetail(m.filteredTasks[m.taskCursor], w-4)...)
 	}
 
-	return box.Width(w).Height(h).Render(strings.Join(rows, "\n"))
+	return borderStyle.Width(w).Height(h).Render(strings.Join(rows, "\n"))
 }
 
 func (m Model) renderDetail(task asana.Task, maxW int) []string {
@@ -170,13 +198,13 @@ func (m Model) renderDetail(task asana.Task, maxW int) []string {
 	}
 
 	kv("ID", task.GetID())
-	status := "⏳ Incomplete"
 	if task.Completed {
-		status = "✅ Complete"
+		kv("Status", "✅ Complete")
+	} else {
+		kv("Status", "⏳ Incomplete")
 	}
-	kv("Status", status)
 	kv("Priority", task.Priority)
-	kv("Due", task.DueDate)
+	kv("Due",      task.DueDate)
 	kv("Assignee", task.Assignee.Name)
 
 	if len(task.Tags) > 0 {
@@ -190,7 +218,6 @@ func (m Model) renderDetail(task asana.Task, maxW int) []string {
 	if task.Notes != "" {
 		rows = append(rows, "")
 		rows = append(rows, detailKeyStyle.Render("Description:"))
-		// word-wrap
 		words := strings.Fields(task.Notes)
 		line := ""
 		for _, w := range words {
@@ -211,7 +238,7 @@ func (m Model) renderDetail(task asana.Task, maxW int) []string {
 	return rows
 }
 
-// ─── Model/Provider Switcher Panel ───────────────────────────────────────────
+// ─── Model/Provider Panel ────────────────────────────────────────────────────
 
 func (m Model) viewModelPane(w, h int) string {
 	active := m.activePane == paneModel
@@ -220,29 +247,25 @@ func (m Model) viewModelPane(w, h int) string {
 		box = activeBorderStyle
 	}
 
-	sub := "Providers"
+	sub := "Providers  [Tab→models]"
 	if m.modelSubPane == 1 {
-		sub = "Models"
+		sub = "Models  [Tab→providers]"
 	}
-	title := sectionStyle.Render(fmt.Sprintf("Model › %s", sub))
-	hint  := keyDescStyle.Render("  [Tab] toggle · [Enter] select")
 
 	var rows []string
-	rows = append(rows, title+hint)
+	rows = append(rows, sectionStyle.Render("Model › "+sub))
 
 	if m.modelSubPane == 0 {
 		for i, prov := range m.modelPane.providers {
-			isSel     := i == m.modelPane.providerCursor && active
-			isCurrent := prov.ID == m.modelPane.activeProvider
 			marker := "  "
-			if isCurrent {
+			if prov.ID == m.modelPane.activeProvider {
 				marker = "▶ "
 			}
 			label := marker + prov.Name
 			switch {
-			case isSel:
+			case i == m.modelPane.providerCursor && active:
 				rows = append(rows, providerSelectedStyle.Width(w-4).Render(label))
-			case isCurrent:
+			case prov.ID == m.modelPane.activeProvider:
 				rows = append(rows, providerActiveStyle.Render(label))
 			default:
 				rows = append(rows, providerStyle.Render(label))
@@ -252,17 +275,15 @@ func (m Model) viewModelPane(w, h int) string {
 		prov := m.modelPane.providers[m.modelPane.providerCursor]
 		rows = append(rows, keyDescStyle.Render("  "+prov.Name))
 		for i, mod := range prov.Models {
-			isSel     := i == m.modelPane.modelCursor && active
-			isCurrent := mod == m.modelPane.activeModel && prov.ID == m.modelPane.activeProvider
 			marker := "  "
-			if isCurrent {
+			if mod == m.modelPane.activeModel && prov.ID == m.modelPane.activeProvider {
 				marker = "▶ "
 			}
 			label := marker + mod
 			switch {
-			case isSel:
+			case i == m.modelPane.modelCursor && active:
 				rows = append(rows, providerSelectedStyle.Width(w-4).Render(label))
-			case isCurrent:
+			case mod == m.modelPane.activeModel && prov.ID == m.modelPane.activeProvider:
 				rows = append(rows, providerActiveStyle.Render(label))
 			default:
 				rows = append(rows, providerStyle.Render(label))
@@ -276,9 +297,11 @@ func (m Model) viewModelPane(w, h int) string {
 // ─── Execution Log Panel ─────────────────────────────────────────────────────
 
 func (m Model) viewLogPanel(w, h int) string {
-	box := activeBorderStyle
+	visH := h - borderRows - 1
+	if visH < 1 {
+		visH = 1
+	}
 
-	visH := h - 3
 	start := 0
 	if len(m.logLines) > visH {
 		start = len(m.logLines) - visH
@@ -306,79 +329,86 @@ func (m Model) viewLogPanel(w, h int) string {
 		rows = append(rows, logStyle.Render(m.spinner.View()+" Working…"))
 	}
 
-	return box.Width(w).Height(h).Render(strings.Join(rows, "\n"))
+	return activeBorderStyle.Width(w).Height(h).Render(strings.Join(rows, "\n"))
 }
 
-// ─── Config Screen (full-screen) ─────────────────────────────────────────────
+// ─── Config Screen ───────────────────────────────────────────────────────────
 
 func (m Model) viewConfigScreen() string {
-	w, h := m.width, m.height
+	// Card is always smaller than the terminal so Place() can center it
+	cardW := min(m.width-4, 72)
+	// Each field = label(1) + input(3 with border) + gap(1) = 5 rows
+	// Header = title(1) + hint(1) + gap(1) = 3 rows
+	// Footer = scroll hint(1) + models note(1) = 2 rows
+	maxFieldsVisible := (m.height - 4 - 3 - 2) / 5
+	if maxFieldsVisible < 1 {
+		maxFieldsVisible = 1
+	}
+	cardH := 3 + (maxFieldsVisible * 5) + 3
+	if cardH > m.height-2 {
+		cardH = m.height - 2
+	}
 
-	// Centered card
-	cardW := min(w-4, 72)
-	cardH := h - 4
-
-	title := lipgloss.NewStyle().
-		Foreground(colorAccent).Bold(true).
-		Render("🔧  Configuration")
-
-	hint := keyDescStyle.Render("Tab/Shift-Tab navigate · Enter save field · Ctrl-S save & close · Esc cancel")
+	title := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render("🔧  Configuration")
+	hint  := keyDescStyle.Render("Tab/↑↓ navigate · ←→ options · Ctrl-S save · Esc cancel")
 
 	var rows []string
 	rows = append(rows, title)
 	rows = append(rows, hint)
 	rows = append(rows, "")
 
-	for i, f := range configFields {
+	// Scroll window: keep focused field in view
+	fieldStart := 0
+	if m.cfgCursor >= maxFieldsVisible {
+		fieldStart = m.cfgCursor - maxFieldsVisible + 1
+	}
+	fieldEnd := fieldStart + maxFieldsVisible
+	if fieldEnd > len(configFields) {
+		fieldEnd = len(configFields)
+	}
+
+	for i := fieldStart; i < fieldEnd; i++ {
+		f         := configFields[i]
 		isFocused := i == m.cfgCursor
-		label := f.label
+		inputW    := cardW - 8
+
+		var label string
 		if isFocused {
-			label = lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render("› "+label)
+			label = lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render("› " + f.label)
 		} else {
-			label = keyDescStyle.Render("  "+label)
+			label = keyDescStyle.Render("  " + f.label)
 		}
 
 		var valueStr string
 		if len(f.options) > 0 {
-			// Horizontal picker
 			cursor := m.cfgOptCursors[i]
 			var opts []string
 			for j, opt := range f.options {
 				if j == cursor {
 					opts = append(opts, lipgloss.NewStyle().
-						Foreground(colorYellow).Bold(true).
-						Render("[ "+opt+" ]"))
+						Foreground(colorYellow).Bold(true).Render("[ "+opt+" ]"))
 				} else {
 					opts = append(opts, keyDescStyle.Render("  "+opt+"  "))
 				}
 			}
 			valueStr = strings.Join(opts, " ")
 		} else {
-			// Styled text input
 			inp := m.cfgInputs[i]
 			if isFocused {
 				valueStr = lipgloss.NewStyle().
-					Border(lipgloss.RoundedBorder()).
-					BorderForeground(colorAccent).
-					Width(cardW - 6).
-					Render(inp.View())
+					Border(lipgloss.RoundedBorder()).BorderForeground(colorAccent).
+					Width(inputW).Render(inp.View())
 			} else {
 				display := inp.Value()
 				if f.secret && display != "" {
-					display = strings.Repeat("•", len(display))
-					if len(display) > 32 {
-						display = display[:32]
-					}
+					display = strings.Repeat("•", min(len(display), 32))
 				}
 				if display == "" {
-					display = keyDescStyle.Render("(not set)")
+					display = "(not set)"
 				}
 				valueStr = lipgloss.NewStyle().
-					Border(lipgloss.RoundedBorder()).
-					BorderForeground(colorBorder).
-					Width(cardW - 6).
-					Foreground(colorText).
-					Render(display)
+					Border(lipgloss.RoundedBorder()).BorderForeground(colorBorder).
+					Foreground(colorMuted).Width(inputW).Render(display)
 			}
 		}
 
@@ -387,14 +417,19 @@ func (m Model) viewConfigScreen() string {
 		rows = append(rows, "")
 	}
 
-	// Provider models note
+	// Scroll position hint
+	if len(configFields) > maxFieldsVisible {
+		rows = append(rows, keyDescStyle.Render(
+			fmt.Sprintf("  field %d / %d", m.cfgCursor+1, len(configFields))))
+	}
+
+	// Available models for selected provider
 	for i, f := range configFields {
 		if f.key == "provider" {
 			chosen := f.options[m.cfgOptCursors[i]]
 			if prov, ok := ai.GetProvider(chosen); ok {
 				rows = append(rows, keyDescStyle.Render(
-					fmt.Sprintf("  Available models for %s: %s", prov.Name, strings.Join(prov.Models, ", ")),
-				))
+					"  Models: "+strings.Join(prov.Models, ", ")))
 			}
 			break
 		}
@@ -402,30 +437,23 @@ func (m Model) viewConfigScreen() string {
 
 	card := activeBorderStyle.Width(cardW).Height(cardH).Render(strings.Join(rows, "\n"))
 
-	// Center horizontally
-	pad := (w - cardW) / 2
-	if pad < 0 {
-		pad = 0
-	}
-	return lipgloss.NewStyle().PaddingLeft(pad).PaddingTop(1).Render(card)
+	// Place centers the card within the full terminal dimensions
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, card)
 }
 
 // ─── Search Overlay ──────────────────────────────────────────────────────────
 
 func (m Model) viewSearchOverlay() string {
-	box := lipgloss.NewStyle().
-		Width(m.width - 4).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colorAccent).
-		Padding(0, 1)
-
+	boxW := min(m.width-4, 64)
 	content := inputStyle.Render("/ ") + m.searchInput.View() +
 		keyDescStyle.Render("   Enter=search · Esc=cancel")
+	box := lipgloss.NewStyle().
+		Width(boxW).
+		Border(lipgloss.RoundedBorder()).BorderForeground(colorAccent).
+		Padding(0, 1).
+		Render(content)
 
-	return lipgloss.NewStyle().
-		Width(m.width).Height(m.height).
-		Padding(m.height/2-1, 2).
-		Render(box.Render(content))
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }
 
 // ─── Status Bar ──────────────────────────────────────────────────────────────
@@ -443,8 +471,9 @@ func (m Model) viewStatusBar() string {
 		s = statusBarStyle
 	}
 	msg := m.statusMsg
-	if len(msg) > m.width-2 {
-		msg = msg[:m.width-5] + "…"
+	runes := []rune(msg)
+	if len(runes) > m.width-2 {
+		msg = string(runes[:m.width-5]) + "…"
 	}
 	return s.Width(m.width).Render(msg)
 }
@@ -464,13 +493,12 @@ func (m Model) viewKeybinds() string {
 	}
 	if m.activePane == paneConfig {
 		binds = []struct{ k, d string }{
-			{"Tab", "next field"},
-			{"←→/Enter", "pick option"},
+			{"Tab/↑↓", "navigate"},
+			{"←→", "pick option"},
 			{"Ctrl-S", "save & close"},
 			{"Esc", "cancel"},
 		}
 	}
-
 	var parts []string
 	for _, b := range binds {
 		parts = append(parts, keyStyle.Render(b.k)+keyDescStyle.Render(" "+b.d))
