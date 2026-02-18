@@ -1,0 +1,134 @@
+# .goreleaser.yaml
+# Docs: https://goreleaser.com/customization/
+
+version: 2
+
+project_name: task-agent
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: task-agent
+    main: ./cmd/task-agent
+    binary: task-agent
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # Exclude windows/arm64 — less common, harder to test
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: task-agent
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "arm64" }}arm64
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+# Generate SBOM for supply chain security
+sboms:
+  - artifacts: archive
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - Merge pull request
+      - Merge remote-tracking
+      - Merge branch
+  groups:
+    - title: "New Features"
+      regexp: "^feat"
+      order: 0
+    - title: "Bug Fixes"
+      regexp: "^fix"
+      order: 1
+    - title: "Other"
+      order: 999
+
+# Homebrew tap formula — auto-updated on release
+brews:
+  - name: task-agent
+    repository:
+      owner: "{{ .Env.GITHUB_OWNER }}"
+      name: homebrew-task-agent
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "chore: brew formula update for {{ .ProjectName }} {{ .Tag }}"
+    directory: Formula
+    homepage: "https://github.com/{{ .Env.GITHUB_OWNER }}/task-agent"
+    description: "YOLO AI Task Executor for Asana — Bubble Tea TUI"
+    license: MIT
+    skip_upload: auto
+    # Dependencies — asana-cli must be installed separately
+    dependencies:
+      - name: asana-cli
+        type: optional
+    test: |
+      system "#{bin}/task-agent", "--version"
+    install: |
+      bin.install "task-agent"
+
+# GitHub Releases
+release:
+  github:
+    owner: "{{ .Env.GITHUB_OWNER }}"
+    name: task-agent
+  name_template: "v{{ .Version }}"
+  draft: false
+  prerelease: auto
+  header: |
+    ## task-agent {{ .Tag }}
+
+    YOLO AI Task Executor for Asana with Bubble Tea TUI.
+
+    ### Install via Homebrew
+    ```bash
+    brew tap {{ .Env.GITHUB_OWNER }}/task-agent
+    brew install task-agent
+    ```
+
+    ### Install via Go
+    ```bash
+    go install github.com/{{ .Env.GITHUB_OWNER }}/task-agent/cmd/task-agent@{{ .Tag }}
+    ```
+  footer: |
+    **Full Changelog**: https://github.com/{{ .Env.GITHUB_OWNER }}/task-agent/compare/{{ .PreviousTag }}...{{ .Tag }}

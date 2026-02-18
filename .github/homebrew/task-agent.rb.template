@@ -1,0 +1,38 @@
+class TaskAgent < Formula
+  desc "YOLO AI Task Executor for Asana — Bubble Tea TUI"
+  homepage "https://github.com/TheCoolRobot/task-agent"
+  version "0.0.0"
+  license "MIT"
+
+  on_macos do
+    on_arm do
+      url "https://github.com/TheCoolRobot/task-agent/releases/download/v#{version}/task-agent_Darwin_arm64.tar.gz"
+      sha256 "PLACEHOLDER"
+    end
+    on_intel do
+      url "https://github.com/TheCoolRobot/task-agent/releases/download/v#{version}/task-agent_Darwin_x86_64.tar.gz"
+      sha256 "PLACEHOLDER"
+    end
+  end
+
+  on_linux do
+    on_arm do
+      url "https://github.com/TheCoolRobot/task-agent/releases/download/v#{version}/task-agent_Linux_arm64.tar.gz"
+      sha256 "PLACEHOLDER"
+    end
+    on_intel do
+      url "https://github.com/TheCoolRobot/task-agent/releases/download/v#{version}/task-agent_Linux_x86_64.tar.gz"
+      sha256 "PLACEHOLDER"
+    end
+  end
+
+  depends_on "thecoolrobot/asana-cli/asana-cli" => :optional
+
+  def install
+    bin.install "task-agent"
+  end
+
+  test do
+    system "#{bin}/task-agent", "--version"
+  end
+end
