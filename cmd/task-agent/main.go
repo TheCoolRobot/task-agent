@@ -15,7 +15,12 @@ import (
 	"github.com/thecoolrobot/task-agent/internal/tui"
 )
 
-var version = "1.0.0"
+// Set via ldflags at build time
+var (
+	version = "0.1.0"
+	commit  = "none"
+	date    = "Feb 18, 2026"
+)
 
 func main() {
 	if err := newRoot().Execute(); err != nil {

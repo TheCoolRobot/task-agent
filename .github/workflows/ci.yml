@@ -14,47 +14,41 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         go: ["1.22", "1.23"]
     runs-on: ${{ matrix.os }}
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Go ${{ matrix.go }}
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
           cache: true
 
-      - name: Verify dependencies
+      - name: Tidy
         run: go mod tidy && git diff --exit-code
 
       - name: Build
         run: go build -v ./...
 
-      - name: Test
-        run: go test ./... -v -race
-        continue-on-error: true
-
       - name: Vet
         run: go vet ./...
 
-  # Dry-run GoReleaser to catch config errors before tagging
+      - name: Test
+        run: go test ./...
+        continue-on-error: true  # no tests yet — remove once tests exist
+
   goreleaser-check:
     name: GoReleaser dry run
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
 
-      - name: GoReleaser check
+      - name: GoReleaser config check
         uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
@@ -68,3 +62,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_OWNER: ${{ github.repository_owner }}
+          # Snapshot build never touches the tap, but the var must exist
+          TAP_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

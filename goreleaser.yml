@@ -1,6 +1,5 @@
-# .goreleaser.yaml
+# .goreleaser.yaml — GoReleaser v2
 # Docs: https://goreleaser.com/customization/
-
 version: 2
 
 project_name: task-agent
@@ -8,7 +7,6 @@ project_name: task-agent
 before:
   hooks:
     - go mod tidy
-    - go generate ./...
 
 builds:
   - id: task-agent
@@ -23,7 +21,6 @@ builds:
     goarch:
       - amd64
       - arm64
-    # Exclude windows/arm64 — less common, harder to test
     ignore:
       - goos: windows
         goarch: arm64
@@ -44,25 +41,20 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - README.md
-      - LICENSE*
 
 checksum:
   name_template: "checksums.txt"
   algorithm: sha256
-
-# Generate SBOM for supply chain security
-sboms:
-  - artifacts: archive
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
 changelog:
   sort: asc
-  use: github
+  use: git
   filters:
     exclude:
       - "^docs:"
@@ -70,7 +62,6 @@ changelog:
       - "^ci:"
       - "^chore:"
       - Merge pull request
-      - Merge remote-tracking
       - Merge branch
   groups:
     - title: "New Features"
@@ -79,10 +70,9 @@ changelog:
     - title: "Bug Fixes"
       regexp: "^fix"
       order: 1
-    - title: "Other"
+    - title: Other
       order: 999
 
-# Homebrew tap formula — auto-updated on release
 brews:
   - name: task-agent
     repository:
@@ -98,16 +88,11 @@ brews:
     description: "YOLO AI Task Executor for Asana — Bubble Tea TUI"
     license: MIT
     skip_upload: auto
-    # Dependencies — asana-cli must be installed separately
-    dependencies:
-      - name: asana-cli
-        type: optional
-    test: |
-      system "#{bin}/task-agent", "--version"
     install: |
       bin.install "task-agent"
+    test: |
+      system "#{bin}/task-agent", "--version"
 
-# GitHub Releases
 release:
   github:
     owner: "{{ .Env.GITHUB_OWNER }}"
@@ -118,17 +103,10 @@ release:
   header: |
     ## task-agent {{ .Tag }}
 
-    YOLO AI Task Executor for Asana with Bubble Tea TUI.
-
     ### Install via Homebrew
     ```bash
     brew tap {{ .Env.GITHUB_OWNER }}/task-agent
     brew install task-agent
-    ```
-
-    ### Install via Go
-    ```bash
-    go install github.com/{{ .Env.GITHUB_OWNER }}/task-agent/cmd/task-agent@{{ .Tag }}
     ```
   footer: |
     **Full Changelog**: https://github.com/{{ .Env.GITHUB_OWNER }}/task-agent/compare/{{ .PreviousTag }}...{{ .Tag }}
