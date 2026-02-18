@@ -31,9 +31,9 @@ builds:
       - -X main.date={{.Date}}
     mod_timestamp: "{{ .CommitTimestamp }}"
 
-permissions:
-  contents: write  
-  packages: write 
+# permissions:
+#   contents: write  
+#   packages: write 
 
 archives:
   - id: task-agent
