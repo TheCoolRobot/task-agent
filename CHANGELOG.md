@@ -1,3 +1,17 @@
+# 0.1.3
+## Fixed bug
+* Bubbletea posistion bug
+* Bg color bug
+
+# 0.1.2
+## Experimented with TUI
+* Got rid of the weird black text box
+## Added some nice themes
+* Themes include light, dark, homebrew
+
+# 0.1.1-dev
+## Experimented with TUI
+* Tried to get rid of a weird black text box(failed)
 # 0.1.1
 ## GUI Improvements
 * Fixed some overflow issues
@@ -5,12 +19,4 @@
 ## Additional Models
 * Added MoonShotAI's Kira model and a couple others
 
-# 0.1.1-dev
-# Experimented with TUI
-* Tried to get rid of a weird black text box(failed)
 
-# 0.1.2
-## Experimented with TUI
-* Got rid of the weird black text box
-## Added some nice themes
-* Themes include light, dark, homebrew, etc

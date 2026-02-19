@@ -145,6 +145,7 @@ var (
 	colorText     lipgloss.Color
 	colorSelected lipgloss.Color
 
+	// Panel borders — Background set so lipgloss fills the inner canvas correctly.
 	borderStyle       lipgloss.Style
 	activeBorderStyle lipgloss.Style
 
@@ -176,8 +177,9 @@ var (
 	sectionStyle lipgloss.Style
 )
 
-// setTheme rebuilds every style variable from a Theme. Call this whenever
-// the theme changes.
+// setTheme rebuilds every style variable from a Theme. Called whenever the
+// theme changes. Every style that renders content inside a panel explicitly
+// sets Background so no cell falls through to the terminal default.
 func setTheme(t Theme) {
 	colorBg       = t.Bg
 	colorSurface  = t.Surface
@@ -190,6 +192,12 @@ func setTheme(t Theme) {
 	colorText     = t.Text
 	colorSelected = t.Selected
 
+	// The UnsetBackground() call on the inner content is intentional: we let
+	// the border box's Background propagate. But lipgloss does NOT propagate
+	// background from the outer box into child Render calls — each child must
+	// set it explicitly. We do that everywhere in view.go; here we just make
+	// sure the box itself has the right canvas color so any leftover padding
+	// cells are also correct.
 	borderStyle = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorBorder).
@@ -200,6 +208,7 @@ func setTheme(t Theme) {
 		BorderForeground(colorAccent).
 		Background(colorBg)
 
+	// ── Task list ────────────────────────────────────────────────────────────
 	taskItemStyle = lipgloss.NewStyle().
 		Foreground(colorText).Background(colorBg).Padding(0, 1)
 
@@ -209,6 +218,7 @@ func setTheme(t Theme) {
 	taskCompletedStyle = lipgloss.NewStyle().
 		Foreground(colorMuted).Background(colorBg).Strikethrough(true).Padding(0, 1)
 
+	// ── Detail panel ─────────────────────────────────────────────────────────
 	detailHeaderStyle = lipgloss.NewStyle().
 		Foreground(colorAccent).Background(colorBg).Bold(true)
 
@@ -218,6 +228,7 @@ func setTheme(t Theme) {
 	detailValueStyle = lipgloss.NewStyle().
 		Foreground(colorText).Background(colorBg)
 
+	// ── Provider / model panel ───────────────────────────────────────────────
 	providerActiveStyle = lipgloss.NewStyle().
 		Foreground(colorGreen).Background(colorBg).Bold(true)
 
@@ -227,6 +238,7 @@ func setTheme(t Theme) {
 	providerSelectedStyle = lipgloss.NewStyle().
 		Background(colorSelected).Foreground(colorText).Bold(true)
 
+	// ── Status bar ───────────────────────────────────────────────────────────
 	statusBarStyle = lipgloss.NewStyle().
 		Background(colorSurface).Foreground(colorMuted).Padding(0, 1)
 
@@ -239,12 +251,14 @@ func setTheme(t Theme) {
 	statusLoadStyle = lipgloss.NewStyle().
 		Background(colorSurface).Foreground(colorYellow).Bold(true).Padding(0, 1)
 
+	// ── Keybind bar ──────────────────────────────────────────────────────────
 	keyStyle = lipgloss.NewStyle().
 		Foreground(colorAccent).Background(colorSurface).Bold(true)
 
 	keyDescStyle = lipgloss.NewStyle().
 		Foreground(colorMuted).Background(colorSurface)
 
+	// ── Log panel ────────────────────────────────────────────────────────────
 	logStyle = lipgloss.NewStyle().
 		Foreground(colorText).Background(colorBg).Padding(0, 1)
 
@@ -254,6 +268,7 @@ func setTheme(t Theme) {
 	logErrStyle = lipgloss.NewStyle().
 		Foreground(colorRed).Background(colorBg).Padding(0, 1)
 
+	// ── Config screen ────────────────────────────────────────────────────────
 	inputStyle = lipgloss.NewStyle().
 		Foreground(colorYellow).Background(colorBg).Bold(true)
 

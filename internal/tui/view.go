@@ -14,11 +14,12 @@ import (
 
 // Row budget constants — every pixel accounted for.
 const (
-	headerRows   = 2 // text line + bottom border
-	statusRows   = 1
-	keybindRows  = 1
-	fixedRows    = headerRows + statusRows + keybindRows // = 4
-	borderRows   = 2 // top + bottom border on each panel
+	headerRows  = 2 // text line + bottom border
+	statusRows  = 1
+	keybindRows = 1
+	fixedRows   = headerRows + statusRows + keybindRows // = 4
+	borderCols  = 2                                     // left + right border on each panel
+	borderRows  = 2                                     // top + bottom border on each panel
 )
 
 // ─── Top-level View ──────────────────────────────────────────────────────────
@@ -41,11 +42,17 @@ func (m Model) View() string {
 
 	// bodyH is the exact number of terminal rows the panels can occupy,
 	// including their own borders.
-	bodyH  := m.height - fixedRows
-	leftW  := m.width * 42 / 100
-	rightW := m.width - leftW
+	bodyH := m.height - fixedRows
 
-	// Right column splits into detail + model; both borders included in budget.
+	// Account for the 2-char border on each panel (left + right).
+	// We have two columns side by side: left panel and right panel.
+	// Total width = leftW + rightW, where each already includes its own borders.
+	// We split total width 42/58; both panels' outer widths must sum exactly to m.width.
+	leftW  := m.width * 42 / 100
+	rightW := m.width - leftW // no gap — panels are flush
+
+	// Right column splits into detail + model vertically.
+	// Both panels' outer heights must sum to bodyH.
 	detailH := bodyH * 60 / 100
 	if detailH < borderRows+1 {
 		detailH = borderRows + 1
@@ -69,7 +76,7 @@ func (m Model) View() string {
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 
-	// Clamp body to exact bodyH rows to prevent overflow
+	// Clamp body to exact bodyH rows to prevent overflow.
 	bodyLines := strings.Split(body, "\n")
 	if len(bodyLines) > bodyH {
 		bodyLines = bodyLines[:bodyH]
@@ -83,7 +90,8 @@ func (m Model) View() string {
 		m.viewKeybinds(),
 	}, "\n")
 
-	// Paint the entire terminal canvas dark
+	// Paint the entire terminal canvas. Width+Height forces lipgloss to fill
+	// any gaps so the background is uniform everywhere.
 	return lipgloss.NewStyle().
 		Width(m.width).Height(m.height).
 		Background(colorBg).
@@ -93,14 +101,14 @@ func (m Model) View() string {
 // ─── Header ──────────────────────────────────────────────────────────────────
 
 func (m Model) viewHeader() string {
-	logo  := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render("⚡ task-agent")
-	badge := lipgloss.NewStyle().Foreground(colorMuted).
+	logo := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).
+		Background(colorBg).Render("⚡ task-agent")
+	badge := lipgloss.NewStyle().Foreground(colorMuted).Background(colorBg).
 		Render(fmt.Sprintf("  %s / %s", m.modelPane.activeProvider, m.modelPane.activeModel))
 	spin := ""
 	if m.loading || m.executing {
 		spin = "  " + m.spinner.View()
 	}
-	// BorderBottom = 1 extra row → total headerRows = 2
 	return lipgloss.NewStyle().
 		Width(m.width).
 		Background(colorBg).
@@ -112,29 +120,31 @@ func (m Model) viewHeader() string {
 
 func (m Model) viewTaskList(w, h int) string {
 	active := m.activePane == paneTasks
-	box    := borderStyle
+	box := borderStyle
 	if active {
 		box = activeBorderStyle
 	}
 
-	// Content rows = panel height minus the 2 border rows minus 1 title row
+	// Inner content area: subtract border cols/rows and the title row.
+	innerW := w - borderCols
 	innerH := h - borderRows - 1
 	if innerH < 1 {
 		innerH = 1
 	}
 
 	var rows []string
-	header := sectionStyle.Render("Tasks")
+	header := sectionStyle.Width(innerW).Render("Tasks")
 	if len(m.filteredTasks) > 0 {
-		header += keyDescStyle.Render(fmt.Sprintf(" (%d)", len(m.filteredTasks)))
+		header = sectionStyle.Width(innerW).Render(
+			fmt.Sprintf("Tasks (%d)", len(m.filteredTasks)))
 	}
 	rows = append(rows, header)
 
 	switch {
 	case m.loading && len(m.tasks) == 0:
-		rows = append(rows, keyDescStyle.Render("  "+m.spinner.View()+" Loading…"))
+		rows = append(rows, keyDescStyle.Background(colorBg).Render("  "+m.spinner.View()+" Loading…"))
 	case len(m.filteredTasks) == 0:
-		rows = append(rows, keyDescStyle.Render("  No tasks — press r to refresh"))
+		rows = append(rows, keyDescStyle.Background(colorBg).Render("  No tasks — press r to refresh"))
 	default:
 		shown := 0
 		for i, task := range m.filteredTasks {
@@ -144,7 +154,7 @@ func (m Model) viewTaskList(w, h int) string {
 			if shown >= innerH {
 				break
 			}
-			rows = append(rows, m.renderTaskRow(task, i == m.taskCursor, w-2))
+			rows = append(rows, m.renderTaskRow(task, i == m.taskCursor, innerW))
 			shown++
 		}
 		total := len(m.filteredTasks)
@@ -153,8 +163,15 @@ func (m Model) viewTaskList(w, h int) string {
 			if denom := total - innerH; denom > 0 {
 				pct = 100 * m.taskScroll / denom
 			}
-			rows = append(rows, keyDescStyle.Render(fmt.Sprintf("  ↕ %d%%", pct)))
+			rows = append(rows, keyDescStyle.Background(colorBg).Render(fmt.Sprintf("  ↕ %d%%", pct)))
 		}
+	}
+
+	// Pad remaining rows with blank background-colored lines so the panel
+	// fills its full height without showing terminal default background.
+	blank := lipgloss.NewStyle().Background(colorBg).Width(innerW).Render("")
+	for len(rows) < h-borderRows {
+		rows = append(rows, blank)
 	}
 
 	return box.Width(w).Height(h).Render(strings.Join(rows, "\n"))
@@ -179,13 +196,21 @@ func (m Model) renderTaskRow(task asana.Task, selected bool, maxW int) string {
 // ─── Task Detail Panel ───────────────────────────────────────────────────────
 
 func (m Model) viewDetail(w, h int) string {
+	innerW := w - borderCols
+
 	var rows []string
-	rows = append(rows, sectionStyle.Render("Task Details"))
+	rows = append(rows, sectionStyle.Width(innerW).Render("Task Details"))
 
 	if len(m.filteredTasks) == 0 || m.taskCursor >= len(m.filteredTasks) {
-		rows = append(rows, keyDescStyle.Render("  Select a task"))
+		rows = append(rows, keyDescStyle.Background(colorBg).Render("  Select a task"))
 	} else {
-		rows = append(rows, m.renderDetail(m.filteredTasks[m.taskCursor], w-4)...)
+		rows = append(rows, m.renderDetail(m.filteredTasks[m.taskCursor], innerW)...)
+	}
+
+	// Pad to fill height.
+	blank := lipgloss.NewStyle().Background(colorBg).Width(innerW).Render("")
+	for len(rows) < h-borderRows {
+		rows = append(rows, blank)
 	}
 
 	return borderStyle.Width(w).Height(h).Render(strings.Join(rows, "\n"))
@@ -210,7 +235,7 @@ func (m Model) renderDetail(task asana.Task, maxW int) []string {
 		kv("Status", "⏳ Incomplete")
 	}
 	kv("Priority", task.Priority)
-	kv("Due",      task.DueDate)
+	kv("Due", task.DueDate)
 	kv("Assignee", task.Assignee.Name)
 
 	if len(task.Tags) > 0 {
@@ -228,7 +253,7 @@ func (m Model) renderDetail(task asana.Task, maxW int) []string {
 		line := ""
 		for _, w := range words {
 			if len(line)+len(w)+1 > maxW-2 {
-				rows = append(rows, detailValueStyle.Render("  "+line))
+				rows = append(rows, detailValueStyle.Background(colorBg).Render("  "+line))
 				line = w
 			} else {
 				if line != "" {
@@ -238,7 +263,7 @@ func (m Model) renderDetail(task asana.Task, maxW int) []string {
 			}
 		}
 		if line != "" {
-			rows = append(rows, detailValueStyle.Render("  "+line))
+			rows = append(rows, detailValueStyle.Background(colorBg).Render("  "+line))
 		}
 	}
 	return rows
@@ -248,10 +273,12 @@ func (m Model) renderDetail(task asana.Task, maxW int) []string {
 
 func (m Model) viewModelPane(w, h int) string {
 	active := m.activePane == paneModel
-	box    := borderStyle
+	box := borderStyle
 	if active {
 		box = activeBorderStyle
 	}
+
+	innerW := w - borderCols
 
 	sub := "Providers  [Tab→models]"
 	if m.modelSubPane == 1 {
@@ -259,7 +286,7 @@ func (m Model) viewModelPane(w, h int) string {
 	}
 
 	var rows []string
-	rows = append(rows, sectionStyle.Render("Model › "+sub))
+	rows = append(rows, sectionStyle.Width(innerW).Render("Model › "+sub))
 
 	if m.modelSubPane == 0 {
 		for i, prov := range m.modelPane.providers {
@@ -270,16 +297,16 @@ func (m Model) viewModelPane(w, h int) string {
 			label := marker + prov.Name
 			switch {
 			case i == m.modelPane.providerCursor && active:
-				rows = append(rows, providerSelectedStyle.Width(w-4).Render(label))
+				rows = append(rows, providerSelectedStyle.Width(innerW).Render(label))
 			case prov.ID == m.modelPane.activeProvider:
-				rows = append(rows, providerActiveStyle.Render(label))
+				rows = append(rows, providerActiveStyle.Background(colorBg).Render(label))
 			default:
-				rows = append(rows, providerStyle.Render(label))
+				rows = append(rows, providerStyle.Width(innerW).Render(label))
 			}
 		}
 	} else {
 		prov := m.modelPane.providers[m.modelPane.providerCursor]
-		rows = append(rows, keyDescStyle.Render("  "+prov.Name))
+		rows = append(rows, keyDescStyle.Background(colorBg).Render("  "+prov.Name))
 		for i, mod := range prov.Models {
 			marker := "  "
 			if mod == m.modelPane.activeModel && prov.ID == m.modelPane.activeProvider {
@@ -288,13 +315,19 @@ func (m Model) viewModelPane(w, h int) string {
 			label := marker + mod
 			switch {
 			case i == m.modelPane.modelCursor && active:
-				rows = append(rows, providerSelectedStyle.Width(w-4).Render(label))
+				rows = append(rows, providerSelectedStyle.Width(innerW).Render(label))
 			case mod == m.modelPane.activeModel && prov.ID == m.modelPane.activeProvider:
-				rows = append(rows, providerActiveStyle.Render(label))
+				rows = append(rows, providerActiveStyle.Background(colorBg).Render(label))
 			default:
-				rows = append(rows, providerStyle.Render(label))
+				rows = append(rows, providerStyle.Width(innerW).Render(label))
 			}
 		}
+	}
+
+	// Pad to fill height.
+	blank := lipgloss.NewStyle().Background(colorBg).Width(innerW).Render("")
+	for len(rows) < h-borderRows {
+		rows = append(rows, blank)
 	}
 
 	return box.Width(w).Height(h).Render(strings.Join(rows, "\n"))
@@ -303,6 +336,7 @@ func (m Model) viewModelPane(w, h int) string {
 // ─── Execution Log Panel ─────────────────────────────────────────────────────
 
 func (m Model) viewLogPanel(w, h int) string {
+	innerW := w - borderCols
 	visH := h - borderRows - 1
 	if visH < 1 {
 		visH = 1
@@ -314,25 +348,31 @@ func (m Model) viewLogPanel(w, h int) string {
 	}
 
 	var rows []string
-	rows = append(rows, sectionStyle.Render("Execution Log"))
+	rows = append(rows, sectionStyle.Width(innerW).Render("Execution Log"))
 
 	for _, line := range m.logLines[start:] {
 		var s string
 		switch line.kind {
 		case "ok":
-			s = logSuccessStyle.Render(line.text)
+			s = logSuccessStyle.Width(innerW).Render(line.text)
 		case "err":
-			s = logErrStyle.Render(line.text)
+			s = logErrStyle.Width(innerW).Render(line.text)
 		case "dim":
-			s = keyDescStyle.Render(line.text)
+			s = keyDescStyle.Background(colorBg).Width(innerW).Render(line.text)
 		default:
-			s = logStyle.Render(line.text)
+			s = logStyle.Width(innerW).Render(line.text)
 		}
 		rows = append(rows, s)
 	}
 
 	if m.executing {
-		rows = append(rows, logStyle.Render(m.spinner.View()+" Working…"))
+		rows = append(rows, logStyle.Width(innerW).Render(m.spinner.View()+" Working…"))
+	}
+
+	// Pad to fill height.
+	blank := lipgloss.NewStyle().Background(colorBg).Width(innerW).Render("")
+	for len(rows) < h-borderRows {
+		rows = append(rows, blank)
 	}
 
 	return activeBorderStyle.Width(w).Height(h).Render(strings.Join(rows, "\n"))
@@ -341,29 +381,26 @@ func (m Model) viewLogPanel(w, h int) string {
 // ─── Config Screen ───────────────────────────────────────────────────────────
 
 func (m Model) viewConfigScreen() string {
-	// Card is always smaller than the terminal so Place() can center it
 	cardW := min(m.width-4, 72)
-	// Each field = label(1) + input(3 with border) + gap(1) = 5 rows
-	// Header = title(1) + hint(1) + gap(1) = 3 rows
-	// Footer = scroll hint(1) + models note(1) = 2 rows
 	maxFieldsVisible := (m.height - 4 - 3 - 2) / 5
 	if maxFieldsVisible < 1 {
 		maxFieldsVisible = 1
 	}
-	cardH := 3 + (maxFieldsVisible * 5) + 3
+	cardH := 3 + (maxFieldsVisible*5) + 3
 	if cardH > m.height-2 {
 		cardH = m.height - 2
 	}
 
-	title := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render("🔧  Configuration")
-	hint  := keyDescStyle.Render("Tab/↑↓ navigate · ←→ options · Ctrl-S save · Esc cancel")
+	title := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Background(colorBg).
+		Render("🔧  Configuration")
+	hint := keyDescStyle.Background(colorBg).
+		Render("Tab/↑↓ navigate · ←→ options · Ctrl-S save · Esc cancel")
 
 	var rows []string
 	rows = append(rows, title)
 	rows = append(rows, hint)
 	rows = append(rows, "")
 
-	// Scroll window: keep focused field in view
 	fieldStart := 0
 	if m.cfgCursor >= maxFieldsVisible {
 		fieldStart = m.cfgCursor - maxFieldsVisible + 1
@@ -374,15 +411,16 @@ func (m Model) viewConfigScreen() string {
 	}
 
 	for i := fieldStart; i < fieldEnd; i++ {
-		f         := configFields[i]
+		f := configFields[i]
 		isFocused := i == m.cfgCursor
-		inputW    := cardW - 8
+		inputW := cardW - 8
 
 		var label string
 		if isFocused {
-			label = lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render("› " + f.label)
+			label = lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Background(colorBg).
+				Render("› " + f.label)
 		} else {
-			label = keyDescStyle.Render("  " + f.label)
+			label = keyDescStyle.Background(colorBg).Render("  " + f.label)
 		}
 
 		var valueStr string
@@ -392,9 +430,9 @@ func (m Model) viewConfigScreen() string {
 			for j, opt := range f.options {
 				if j == cursor {
 					opts = append(opts, lipgloss.NewStyle().
-						Foreground(colorYellow).Bold(true).Render("[ "+opt+" ]"))
+						Foreground(colorYellow).Bold(true).Background(colorBg).Render("[ "+opt+" ]"))
 				} else {
-					opts = append(opts, keyDescStyle.Render("  "+opt+"  "))
+					opts = append(opts, keyDescStyle.Background(colorBg).Render("  "+opt+"  "))
 				}
 			}
 			valueStr = strings.Join(opts, " ")
@@ -403,6 +441,7 @@ func (m Model) viewConfigScreen() string {
 			if isFocused {
 				valueStr = lipgloss.NewStyle().
 					Border(lipgloss.RoundedBorder()).BorderForeground(colorAccent).
+					Background(colorBg).
 					Width(inputW).Render(inp.View())
 			} else {
 				display := inp.Value()
@@ -414,7 +453,7 @@ func (m Model) viewConfigScreen() string {
 				}
 				valueStr = lipgloss.NewStyle().
 					Border(lipgloss.RoundedBorder()).BorderForeground(colorBorder).
-					Foreground(colorMuted).Width(inputW).Render(display)
+					Foreground(colorMuted).Background(colorBg).Width(inputW).Render(display)
 			}
 		}
 
@@ -423,18 +462,16 @@ func (m Model) viewConfigScreen() string {
 		rows = append(rows, "")
 	}
 
-	// Scroll position hint
 	if len(configFields) > maxFieldsVisible {
-		rows = append(rows, keyDescStyle.Render(
+		rows = append(rows, keyDescStyle.Background(colorBg).Render(
 			fmt.Sprintf("  field %d / %d", m.cfgCursor+1, len(configFields))))
 	}
 
-	// Available models for selected provider
 	for i, f := range configFields {
 		if f.key == "provider" {
 			chosen := f.options[m.cfgOptCursors[i]]
 			if prov, ok := ai.GetProvider(chosen); ok {
-				rows = append(rows, keyDescStyle.Render(
+				rows = append(rows, keyDescStyle.Background(colorBg).Render(
 					"  Models: "+strings.Join(prov.Models, ", ")))
 			}
 			break
@@ -442,24 +479,25 @@ func (m Model) viewConfigScreen() string {
 	}
 
 	card := activeBorderStyle.Width(cardW).Height(cardH).Render(strings.Join(rows, "\n"))
-
-	// Place centers the card within the full terminal dimensions
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, card)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, card,
+		lipgloss.WithWhitespaceBackground(colorBg))
 }
 
 // ─── Search Overlay ──────────────────────────────────────────────────────────
 
 func (m Model) viewSearchOverlay() string {
 	boxW := min(m.width-4, 64)
-	content := inputStyle.Render("/ ") + m.searchInput.View() +
-		keyDescStyle.Render("   Enter=search · Esc=cancel")
+	content := inputStyle.Background(colorBg).Render("/ ") + m.searchInput.View() +
+		keyDescStyle.Background(colorBg).Render("   Enter=search · Esc=cancel")
 	box := lipgloss.NewStyle().
 		Width(boxW).
 		Border(lipgloss.RoundedBorder()).BorderForeground(colorAccent).
+		Background(colorBg).
 		Padding(0, 1).
 		Render(content)
 
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
+		lipgloss.WithWhitespaceBackground(colorBg))
 }
 
 // ─── Status Bar ──────────────────────────────────────────────────────────────
