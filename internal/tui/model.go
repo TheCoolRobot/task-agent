@@ -81,6 +81,7 @@ var configFields = []configField{
 
 // Model is the top-level Bubble Tea model.
 type Model struct {
+	
 	width, height int
 
 	cfg         *config.Config

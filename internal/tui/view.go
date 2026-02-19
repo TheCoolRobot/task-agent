@@ -12,21 +12,46 @@ import (
 	"github.com/thecoolrobot/task-agent/internal/config"
 )
 
-// Row budget constants — every pixel accounted for.
 const (
-	headerRows  = 2 // text line + bottom border
+	headerRows  = 2 // title line + bottom border
 	statusRows  = 1
 	keybindRows = 1
-	fixedRows   = headerRows + statusRows + keybindRows // = 4
-	borderCols  = 2                                     // left + right border on each panel
-	borderRows  = 2                                     // top + bottom border on each panel
+	fixedRows   = headerRows + statusRows + keybindRows
 )
+
+// panelInnerW returns usable character width inside a rounded-border panel.
+func panelInnerW(outerW int) int {
+	if outerW-2 < 1 {
+		return 1
+	}
+	return outerW - 2
+}
+
+// panelInnerH returns usable line count inside a rounded-border panel.
+func panelInnerH(outerH int) int {
+	if outerH-2 < 1 {
+		return 1
+	}
+	return outerH - 2
+}
+
+// padLines extends lines to exactly n entries using blank bg-colored rows.
+func padLines(lines []string, n, iW int) []string {
+	blank := lipgloss.NewStyle().Background(colorBg).Width(iW).Render("")
+	for len(lines) < n {
+		lines = append(lines, blank)
+	}
+	if len(lines) > n {
+		lines = lines[:n]
+	}
+	return lines
+}
 
 // ─── Top-level View ──────────────────────────────────────────────────────────
 
 func (m Model) View() string {
 	if m.width == 0 || m.height == 0 {
-		return "Initializing…"
+		return "Initializing..."
 	}
 	if m.width < 60 || m.height < 10 {
 		return lipgloss.Place(m.width, m.height,
@@ -40,202 +65,209 @@ func (m Model) View() string {
 		return m.viewConfigScreen()
 	}
 
-	// bodyH is the exact number of terminal rows the panels can occupy,
-	// including their own borders.
 	bodyH := m.height - fixedRows
 
-	// Account for the 2-char border on each panel (left + right).
-	// We have two columns side by side: left panel and right panel.
-	// Total width = leftW + rightW, where each already includes its own borders.
-	// We split total width 42/58; both panels' outer widths must sum exactly to m.width.
-	leftW  := m.width * 42 / 100
-	rightW := m.width - leftW // no gap — panels are flush
+	// Two-column layout. leftW + rightW must equal m.width exactly.
+	leftW  := m.width * 40 / 100
+	rightW := m.width - leftW
 
-	// Right column splits into detail + model vertically.
-	// Both panels' outer heights must sum to bodyH.
+	// Right column stacks two panels vertically.
 	detailH := bodyH * 60 / 100
-	if detailH < borderRows+1 {
-		detailH = borderRows + 1
+	if detailH < 4 {
+		detailH = 4
 	}
 	modelH := bodyH - detailH
-	if modelH < borderRows+1 {
-		modelH = borderRows + 1
+	if modelH < 4 {
+		modelH = 4
 	}
 
-	left := m.viewTaskList(leftW, bodyH)
+	leftPanel := m.viewTaskList(leftW, bodyH)
 
-	var right string
+	var rightPanel string
 	if m.activePane == paneLog {
-		right = m.viewLogPanel(rightW, bodyH)
+		rightPanel = m.viewLogPanel(rightW, bodyH)
 	} else {
-		right = lipgloss.JoinVertical(lipgloss.Left,
+		rightPanel = lipgloss.JoinVertical(lipgloss.Left,
 			m.viewDetail(rightW, detailH),
 			m.viewModelPane(rightW, modelH),
 		)
 	}
 
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 
-	// Clamp body to exact bodyH rows to prevent overflow.
-	bodyLines := strings.Split(body, "\n")
-	if len(bodyLines) > bodyH {
-		bodyLines = bodyLines[:bodyH]
-	}
-	body = strings.Join(bodyLines, "\n")
-
-	full := strings.Join([]string{
+	return lipgloss.JoinVertical(lipgloss.Left,
 		m.viewHeader(),
 		body,
 		m.viewStatusBar(),
 		m.viewKeybinds(),
-	}, "\n")
-
-	// Paint the entire terminal canvas. Width+Height forces lipgloss to fill
-	// any gaps so the background is uniform everywhere.
-	return lipgloss.NewStyle().
-		Width(m.width).Height(m.height).
-		Background(colorBg).
-		Render(full)
+	)
 }
 
 // ─── Header ──────────────────────────────────────────────────────────────────
 
 func (m Model) viewHeader() string {
-	logo := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).
-		Background(colorBg).Render("⚡ task-agent")
+	logo  := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Background(colorBg).Render("task-agent")
 	badge := lipgloss.NewStyle().Foreground(colorMuted).Background(colorBg).
-		Render(fmt.Sprintf("  %s / %s", m.modelPane.activeProvider, m.modelPane.activeModel))
+		Render("  " + m.modelPane.activeProvider + " / " + m.modelPane.activeModel)
 	spin := ""
 	if m.loading || m.executing {
 		spin = "  " + m.spinner.View()
 	}
 	return lipgloss.NewStyle().
-		Width(m.width).
-		Background(colorBg).
-		BorderBottom(true).BorderStyle(lipgloss.NormalBorder()).BorderForeground(colorBorder).
+		Width(m.width).Background(colorBg).
+		BorderBottom(true).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(colorBorder).
 		Render(logo + badge + spin)
 }
 
 // ─── Task List Panel ─────────────────────────────────────────────────────────
 
-func (m Model) viewTaskList(w, h int) string {
-	active := m.activePane == paneTasks
-	box := borderStyle
-	if active {
-		box = activeBorderStyle
-	}
+func (m Model) viewTaskList(outerW, outerH int) string {
+	iW := panelInnerW(outerW)
+	iH := panelInnerH(outerH)
 
-	// Inner content area: subtract border cols/rows and the title row.
-	innerW := w - borderCols
-	innerH := h - borderRows - 1
-	if innerH < 1 {
-		innerH = 1
-	}
+	// Helper styles (inline so they always use current theme colors)
+	titleSt := lipgloss.NewStyle().Foreground(colorMuted).Background(colorBg).Bold(true).Width(iW)
+	mutedSt := lipgloss.NewStyle().Foreground(colorMuted).Background(colorBg).Width(iW)
 
-	var rows []string
-	header := sectionStyle.Width(innerW).Render("Tasks")
+	var lines []string
+
+	title := "Tasks"
 	if len(m.filteredTasks) > 0 {
-		header = sectionStyle.Width(innerW).Render(
-			fmt.Sprintf("Tasks (%d)", len(m.filteredTasks)))
+		title = fmt.Sprintf("Tasks (%d)", len(m.filteredTasks))
 	}
-	rows = append(rows, header)
+	lines = append(lines, titleSt.Render(title))
+
+	contentH := iH - 1 // subtract title row
 
 	switch {
 	case m.loading && len(m.tasks) == 0:
-		rows = append(rows, keyDescStyle.Background(colorBg).Render("  "+m.spinner.View()+" Loading…"))
+		lines = append(lines, mutedSt.Render(" "+m.spinner.View()+" Loading..."))
+
 	case len(m.filteredTasks) == 0:
-		rows = append(rows, keyDescStyle.Background(colorBg).Render("  No tasks — press r to refresh"))
+		lines = append(lines, mutedSt.Render(" No tasks — press r to refresh"))
+
 	default:
 		shown := 0
 		for i, task := range m.filteredTasks {
 			if i < m.taskScroll {
 				continue
 			}
-			if shown >= innerH {
+			if shown >= contentH {
 				break
 			}
-			rows = append(rows, m.renderTaskRow(task, i == m.taskCursor, innerW))
+			lines = append(lines, m.renderTaskRow(task, i == m.taskCursor, iW))
 			shown++
 		}
-		total := len(m.filteredTasks)
-		if total > innerH {
+		if len(m.filteredTasks) > contentH {
 			pct := 0
-			if denom := total - innerH; denom > 0 {
+			if denom := len(m.filteredTasks) - contentH; denom > 0 {
 				pct = 100 * m.taskScroll / denom
 			}
-			rows = append(rows, keyDescStyle.Background(colorBg).Render(fmt.Sprintf("  ↕ %d%%", pct)))
+			lines = append(lines, mutedSt.Render(fmt.Sprintf(" scroll %d%%", pct)))
 		}
 	}
 
-	// Pad remaining rows with blank background-colored lines so the panel
-	// fills its full height without showing terminal default background.
-	blank := lipgloss.NewStyle().Background(colorBg).Width(innerW).Render("")
-	for len(rows) < h-borderRows {
-		rows = append(rows, blank)
-	}
+	lines = padLines(lines, iH, iW)
 
-	return box.Width(w).Height(h).Render(strings.Join(rows, "\n"))
+	box := borderStyle
+	if m.activePane == paneTasks {
+		box = activeBorderStyle
+	}
+	return box.Width(outerW).Height(outerH).Render(strings.Join(lines, "\n"))
 }
 
-func (m Model) renderTaskRow(task asana.Task, selected bool, maxW int) string {
-	name := task.Name
-	if max := maxW - 9; len([]rune(name)) > max && max > 3 {
-		name = string([]rune(name)[:max-1]) + "…"
+func (m Model) renderTaskRow(task asana.Task, selected bool, w int) string {
+	// Use plain ASCII to avoid Unicode width ambiguity in terminals
+	status := "[ ]"
+	if task.Completed {
+		status = "[x]"
 	}
-	line := fmt.Sprintf(" %s %s %s", task.StatusIcon(), task.PriorityIcon(), name)
+	pri := "  "
+	switch strings.ToLower(task.Priority) {
+	case "high":
+		pri = "Hi"
+	case "medium":
+		pri = "Md"
+	case "low":
+		pri = "Lo"
+	}
+
+	// 3 (status) + 1 (space) + 2 (pri) + 1 (space) + 1 (leading space) = 8
+	maxName := w - 8
+	if maxName < 1 {
+		maxName = 1
+	}
+	name := task.Name
+	runes := []rune(name)
+	if len(runes) > maxName {
+		name = string(runes[:maxName-1]) + "~"
+	}
+
+	line := fmt.Sprintf(" %s %s %s", status, pri, name)
+
 	switch {
 	case selected:
-		return taskItemSelectedStyle.Width(maxW).Render(line)
+		return lipgloss.NewStyle().
+			Background(colorSelected).Foreground(colorText).Bold(true).Width(w).Render(line)
 	case task.Completed:
-		return taskCompletedStyle.Width(maxW).Render(line)
+		return lipgloss.NewStyle().
+			Foreground(colorMuted).Background(colorBg).Strikethrough(true).Width(w).Render(line)
 	default:
-		return taskItemStyle.Width(maxW).Render(line)
+		return lipgloss.NewStyle().
+			Foreground(colorText).Background(colorBg).Width(w).Render(line)
 	}
 }
 
 // ─── Task Detail Panel ───────────────────────────────────────────────────────
 
-func (m Model) viewDetail(w, h int) string {
-	innerW := w - borderCols
+func (m Model) viewDetail(outerW, outerH int) string {
+	iW := panelInnerW(outerW)
+	iH := panelInnerH(outerH)
 
-	var rows []string
-	rows = append(rows, sectionStyle.Width(innerW).Render("Task Details"))
+	titleSt := lipgloss.NewStyle().Foreground(colorMuted).Background(colorBg).Bold(true).Width(iW)
+	mutedSt := lipgloss.NewStyle().Foreground(colorMuted).Background(colorBg).Width(iW)
+
+	var lines []string
+	lines = append(lines, titleSt.Render("Task Details"))
 
 	if len(m.filteredTasks) == 0 || m.taskCursor >= len(m.filteredTasks) {
-		rows = append(rows, keyDescStyle.Background(colorBg).Render("  Select a task"))
+		lines = append(lines, mutedSt.Render(" Select a task"))
 	} else {
-		rows = append(rows, m.renderDetail(m.filteredTasks[m.taskCursor], innerW)...)
+		lines = append(lines, m.renderDetailLines(m.filteredTasks[m.taskCursor], iW)...)
 	}
 
-	// Pad to fill height.
-	blank := lipgloss.NewStyle().Background(colorBg).Width(innerW).Render("")
-	for len(rows) < h-borderRows {
-		rows = append(rows, blank)
-	}
-
-	return borderStyle.Width(w).Height(h).Render(strings.Join(rows, "\n"))
+	lines = padLines(lines, iH, iW)
+	return borderStyle.Width(outerW).Height(outerH).Render(strings.Join(lines, "\n"))
 }
 
-func (m Model) renderDetail(task asana.Task, maxW int) []string {
-	var rows []string
-	rows = append(rows, detailHeaderStyle.Width(maxW).Render(task.Name))
-	rows = append(rows, "")
+func (m Model) renderDetailLines(task asana.Task, w int) []string {
+	var lines []string
+
+	nameSt  := lipgloss.NewStyle().Foreground(colorAccent).Background(colorBg).Bold(true).Width(w)
+	keySt   := lipgloss.NewStyle().Foreground(colorYellow).Background(colorBg).Bold(true)
+	valSt   := lipgloss.NewStyle().Foreground(colorText).Background(colorBg)
+	blankSt := lipgloss.NewStyle().Foreground(colorMuted).Background(colorBg).Width(w)
+
+	lines = append(lines, nameSt.Render(task.Name))
+	lines = append(lines, blankSt.Render(""))
 
 	kv := func(k, v string) {
 		if v == "" {
 			return
 		}
-		rows = append(rows, detailKeyStyle.Render(k+": ")+detailValueStyle.Render(v))
+		lines = append(lines, keySt.Render(" "+k+": ")+valSt.Render(v))
 	}
 
 	kv("ID", task.GetID())
 	if task.Completed {
-		kv("Status", "✅ Complete")
+		kv("Status", "Complete")
 	} else {
-		kv("Status", "⏳ Incomplete")
+		kv("Status", "Incomplete")
 	}
 	kv("Priority", task.Priority)
-	kv("Due", task.DueDate)
+	kv("Due",      task.DueDate)
 	kv("Assignee", task.Assignee.Name)
 
 	if len(task.Tags) > 0 {
@@ -247,135 +279,145 @@ func (m Model) renderDetail(task asana.Task, maxW int) []string {
 	}
 
 	if task.Notes != "" {
-		rows = append(rows, "")
-		rows = append(rows, detailKeyStyle.Render("Description:"))
+		lines = append(lines, blankSt.Render(""))
+		lines = append(lines, keySt.Render(" Description:"))
 		words := strings.Fields(task.Notes)
-		line := ""
-		for _, w := range words {
-			if len(line)+len(w)+1 > maxW-2 {
-				rows = append(rows, detailValueStyle.Background(colorBg).Render("  "+line))
-				line = w
+		cur := ""
+		for _, wd := range words {
+			if len(cur)+len(wd)+1 > w-3 {
+				lines = append(lines, valSt.Render("  "+cur))
+				cur = wd
 			} else {
-				if line != "" {
-					line += " "
+				if cur != "" {
+					cur += " "
 				}
-				line += w
+				cur += wd
 			}
 		}
-		if line != "" {
-			rows = append(rows, detailValueStyle.Background(colorBg).Render("  "+line))
+		if cur != "" {
+			lines = append(lines, valSt.Render("  "+cur))
 		}
 	}
-	return rows
+	return lines
 }
 
-// ─── Model/Provider Panel ────────────────────────────────────────────────────
+// ─── Model / Provider Panel ──────────────────────────────────────────────────
 
-func (m Model) viewModelPane(w, h int) string {
-	active := m.activePane == paneModel
-	box := borderStyle
-	if active {
-		box = activeBorderStyle
-	}
+func (m Model) viewModelPane(outerW, outerH int) string {
+	iW := panelInnerW(outerW)
+	iH := panelInnerH(outerH)
 
-	innerW := w - borderCols
+	active  := m.activePane == paneModel
+	titleSt := lipgloss.NewStyle().Foreground(colorMuted).Background(colorBg).Bold(true).Width(iW)
 
-	sub := "Providers  [Tab→models]"
+	sub := "Providers  [Tab->models]"
 	if m.modelSubPane == 1 {
-		sub = "Models  [Tab→providers]"
+		sub = "Models  [Tab->providers]"
 	}
 
-	var rows []string
-	rows = append(rows, sectionStyle.Width(innerW).Render("Model › "+sub))
+	var lines []string
+	lines = append(lines, titleSt.Render("Model > "+sub))
 
 	if m.modelSubPane == 0 {
 		for i, prov := range m.modelPane.providers {
 			marker := "  "
 			if prov.ID == m.modelPane.activeProvider {
-				marker = "▶ "
+				marker = "> "
 			}
 			label := marker + prov.Name
 			switch {
 			case i == m.modelPane.providerCursor && active:
-				rows = append(rows, providerSelectedStyle.Width(innerW).Render(label))
+				lines = append(lines, lipgloss.NewStyle().
+					Background(colorSelected).Foreground(colorText).Bold(true).Width(iW).Render(label))
 			case prov.ID == m.modelPane.activeProvider:
-				rows = append(rows, providerActiveStyle.Background(colorBg).Render(label))
+				lines = append(lines, lipgloss.NewStyle().
+					Foreground(colorGreen).Background(colorBg).Bold(true).Width(iW).Render(label))
 			default:
-				rows = append(rows, providerStyle.Width(innerW).Render(label))
+				lines = append(lines, lipgloss.NewStyle().
+					Foreground(colorText).Background(colorBg).Width(iW).Render(label))
 			}
 		}
 	} else {
 		prov := m.modelPane.providers[m.modelPane.providerCursor]
-		rows = append(rows, keyDescStyle.Background(colorBg).Render("  "+prov.Name))
+		lines = append(lines, lipgloss.NewStyle().
+			Foreground(colorMuted).Background(colorBg).Width(iW).Render(" "+prov.Name))
 		for i, mod := range prov.Models {
 			marker := "  "
 			if mod == m.modelPane.activeModel && prov.ID == m.modelPane.activeProvider {
-				marker = "▶ "
+				marker = "> "
 			}
 			label := marker + mod
 			switch {
 			case i == m.modelPane.modelCursor && active:
-				rows = append(rows, providerSelectedStyle.Width(innerW).Render(label))
+				lines = append(lines, lipgloss.NewStyle().
+					Background(colorSelected).Foreground(colorText).Bold(true).Width(iW).Render(label))
 			case mod == m.modelPane.activeModel && prov.ID == m.modelPane.activeProvider:
-				rows = append(rows, providerActiveStyle.Background(colorBg).Render(label))
+				lines = append(lines, lipgloss.NewStyle().
+					Foreground(colorGreen).Background(colorBg).Bold(true).Width(iW).Render(label))
 			default:
-				rows = append(rows, providerStyle.Width(innerW).Render(label))
+				lines = append(lines, lipgloss.NewStyle().
+					Foreground(colorText).Background(colorBg).Width(iW).Render(label))
 			}
 		}
 	}
 
-	// Pad to fill height.
-	blank := lipgloss.NewStyle().Background(colorBg).Width(innerW).Render("")
-	for len(rows) < h-borderRows {
-		rows = append(rows, blank)
-	}
+	lines = padLines(lines, iH, iW)
 
-	return box.Width(w).Height(h).Render(strings.Join(rows, "\n"))
+	box := borderStyle
+	if active {
+		box = activeBorderStyle
+	}
+	return box.Width(outerW).Height(outerH).Render(strings.Join(lines, "\n"))
 }
 
-// ─── Execution Log Panel ─────────────────────────────────────────────────────
+// ─── Log Panel ───────────────────────────────────────────────────────────────
 
-func (m Model) viewLogPanel(w, h int) string {
-	innerW := w - borderCols
-	visH := h - borderRows - 1
-	if visH < 1 {
-		visH = 1
+func (m Model) viewLogPanel(outerW, outerH int) string {
+	iW := panelInnerW(outerW)
+	iH := panelInnerH(outerH)
+
+	titleSt := lipgloss.NewStyle().Foreground(colorMuted).Background(colorBg).Bold(true).Width(iW)
+
+	var lines []string
+	lines = append(lines, titleSt.Render("Execution Log"))
+
+	contentH := iH - 1
+	if m.executing {
+		contentH--
+	}
+	if contentH < 0 {
+		contentH = 0
 	}
 
 	start := 0
-	if len(m.logLines) > visH {
-		start = len(m.logLines) - visH
+	if len(m.logLines) > contentH {
+		start = len(m.logLines) - contentH
 	}
 
-	var rows []string
-	rows = append(rows, sectionStyle.Width(innerW).Render("Execution Log"))
-
-	for _, line := range m.logLines[start:] {
-		var s string
-		switch line.kind {
+	for _, ll := range m.logLines[start:] {
+		var fg lipgloss.Color
+		switch ll.kind {
 		case "ok":
-			s = logSuccessStyle.Width(innerW).Render(line.text)
+			fg = colorGreen
 		case "err":
-			s = logErrStyle.Width(innerW).Render(line.text)
+			fg = colorRed
 		case "dim":
-			s = keyDescStyle.Background(colorBg).Width(innerW).Render(line.text)
+			fg = colorMuted
 		default:
-			s = logStyle.Width(innerW).Render(line.text)
+			fg = colorText
 		}
-		rows = append(rows, s)
+		lines = append(lines, lipgloss.NewStyle().
+			Foreground(fg).Background(colorBg).Width(iW).Render(ll.text))
 	}
 
 	if m.executing {
-		rows = append(rows, logStyle.Width(innerW).Render(m.spinner.View()+" Working…"))
+		lines = append(lines, lipgloss.NewStyle().
+			Foreground(colorYellow).Background(colorBg).Width(iW).
+			Render(m.spinner.View()+" Working..."))
 	}
 
-	// Pad to fill height.
-	blank := lipgloss.NewStyle().Background(colorBg).Width(innerW).Render("")
-	for len(rows) < h-borderRows {
-		rows = append(rows, blank)
-	}
-
-	return activeBorderStyle.Width(w).Height(h).Render(strings.Join(rows, "\n"))
+	lines = padLines(lines, iH, iW)
+	return activeBorderStyle.Width(outerW).Height(outerH).Render(strings.Join(lines, "\n"))
 }
 
 // ─── Config Screen ───────────────────────────────────────────────────────────
@@ -391,36 +433,34 @@ func (m Model) viewConfigScreen() string {
 		cardH = m.height - 2
 	}
 
-	title := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Background(colorBg).
-		Render("🔧  Configuration")
-	hint := keyDescStyle.Background(colorBg).
-		Render("Tab/↑↓ navigate · ←→ options · Ctrl-S save · Esc cancel")
+	iW     := panelInnerW(cardW)
+	inputW := iW - 4
 
 	var rows []string
-	rows = append(rows, title)
-	rows = append(rows, hint)
+	rows = append(rows,
+		lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Background(colorBg).Render("Configuration"))
+	rows = append(rows,
+		lipgloss.NewStyle().Foreground(colorMuted).Background(colorBg).
+			Render("Tab navigate  </> options  Ctrl-S save  Esc cancel"))
 	rows = append(rows, "")
 
 	fieldStart := 0
 	if m.cfgCursor >= maxFieldsVisible {
 		fieldStart = m.cfgCursor - maxFieldsVisible + 1
 	}
-	fieldEnd := fieldStart + maxFieldsVisible
-	if fieldEnd > len(configFields) {
-		fieldEnd = len(configFields)
-	}
+	fieldEnd := min(fieldStart+maxFieldsVisible, len(configFields))
 
 	for i := fieldStart; i < fieldEnd; i++ {
-		f := configFields[i]
+		f         := configFields[i]
 		isFocused := i == m.cfgCursor
-		inputW := cardW - 8
 
 		var label string
 		if isFocused {
 			label = lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Background(colorBg).
-				Render("› " + f.label)
+				Render("> " + f.label)
 		} else {
-			label = keyDescStyle.Background(colorBg).Render("  " + f.label)
+			label = lipgloss.NewStyle().Foreground(colorMuted).Background(colorBg).
+				Render("  " + f.label)
 		}
 
 		var valueStr string
@@ -430,23 +470,23 @@ func (m Model) viewConfigScreen() string {
 			for j, opt := range f.options {
 				if j == cursor {
 					opts = append(opts, lipgloss.NewStyle().
-						Foreground(colorYellow).Bold(true).Background(colorBg).Render("[ "+opt+" ]"))
+						Foreground(colorYellow).Bold(true).Background(colorBg).Render("["+opt+"]"))
 				} else {
-					opts = append(opts, keyDescStyle.Background(colorBg).Render("  "+opt+"  "))
+					opts = append(opts, lipgloss.NewStyle().
+						Foreground(colorMuted).Background(colorBg).Render(" "+opt+" "))
 				}
 			}
-			valueStr = strings.Join(opts, " ")
+			valueStr = "  " + strings.Join(opts, " ")
 		} else {
 			inp := m.cfgInputs[i]
 			if isFocused {
 				valueStr = lipgloss.NewStyle().
 					Border(lipgloss.RoundedBorder()).BorderForeground(colorAccent).
-					Background(colorBg).
-					Width(inputW).Render(inp.View())
+					Background(colorBg).Width(inputW).Render(inp.View())
 			} else {
 				display := inp.Value()
 				if f.secret && display != "" {
-					display = strings.Repeat("•", min(len(display), 32))
+					display = strings.Repeat("*", min(len(display), 32))
 				}
 				if display == "" {
 					display = "(not set)"
@@ -463,23 +503,24 @@ func (m Model) viewConfigScreen() string {
 	}
 
 	if len(configFields) > maxFieldsVisible {
-		rows = append(rows, keyDescStyle.Background(colorBg).Render(
-			fmt.Sprintf("  field %d / %d", m.cfgCursor+1, len(configFields))))
+		rows = append(rows, lipgloss.NewStyle().Foreground(colorMuted).Background(colorBg).
+			Render(fmt.Sprintf("  field %d/%d", m.cfgCursor+1, len(configFields))))
 	}
 
 	for i, f := range configFields {
 		if f.key == "provider" {
 			chosen := f.options[m.cfgOptCursors[i]]
 			if prov, ok := ai.GetProvider(chosen); ok {
-				rows = append(rows, keyDescStyle.Background(colorBg).Render(
-					"  Models: "+strings.Join(prov.Models, ", ")))
+				rows = append(rows, lipgloss.NewStyle().Foreground(colorMuted).Background(colorBg).
+					Render("  Models: "+strings.Join(prov.Models, ", ")))
 			}
 			break
 		}
 	}
 
 	card := activeBorderStyle.Width(cardW).Height(cardH).Render(strings.Join(rows, "\n"))
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, card,
+	return lipgloss.Place(m.width, m.height,
+		lipgloss.Center, lipgloss.Center, card,
 		lipgloss.WithWhitespaceBackground(colorBg))
 }
 
@@ -487,74 +528,68 @@ func (m Model) viewConfigScreen() string {
 
 func (m Model) viewSearchOverlay() string {
 	boxW := min(m.width-4, 64)
-	content := inputStyle.Background(colorBg).Render("/ ") + m.searchInput.View() +
-		keyDescStyle.Background(colorBg).Render("   Enter=search · Esc=cancel")
+	content := lipgloss.NewStyle().Foreground(colorYellow).Background(colorBg).Bold(true).Render("/ ") +
+		m.searchInput.View() +
+		lipgloss.NewStyle().Foreground(colorMuted).Background(colorBg).Render("   Enter=search  Esc=cancel")
 	box := lipgloss.NewStyle().
 		Width(boxW).
 		Border(lipgloss.RoundedBorder()).BorderForeground(colorAccent).
-		Background(colorBg).
-		Padding(0, 1).
+		Background(colorBg).Padding(0, 1).
 		Render(content)
-
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
+	return lipgloss.Place(m.width, m.height,
+		lipgloss.Center, lipgloss.Center, box,
 		lipgloss.WithWhitespaceBackground(colorBg))
 }
 
 // ─── Status Bar ──────────────────────────────────────────────────────────────
 
 func (m Model) viewStatusBar() string {
-	var s lipgloss.Style
+	var fg lipgloss.Color
 	switch m.statusKind {
 	case "ok":
-		s = statusOKStyle
+		fg = colorGreen
 	case "err":
-		s = statusErrStyle
+		fg = colorRed
 	case "loading":
-		s = statusLoadStyle
+		fg = colorYellow
 	default:
-		s = statusBarStyle
+		fg = colorMuted
 	}
 	msg := m.statusMsg
 	runes := []rune(msg)
 	if len(runes) > m.width-2 {
-		msg = string(runes[:m.width-5]) + "…"
+		msg = string(runes[:m.width-5]) + "..."
 	}
-	return s.Width(m.width).Render(msg)
+	return lipgloss.NewStyle().
+		Width(m.width).Background(colorSurface).Foreground(fg).Bold(true).Padding(0, 1).
+		Render(msg)
 }
 
 // ─── Keybind Bar ─────────────────────────────────────────────────────────────
 
 func (m Model) viewKeybinds() string {
 	binds := []struct{ k, d string }{
-		{"↑↓/jk", "nav"},
-		{"Enter", "execute"},
-		{"Tab", "pane"},
-		{"/", "search"},
-		{"C", "config"},
-		{"L", "log"},
-		{"r", "refresh"},
-		{"q", "quit"},
+		{"jk", "nav"}, {"Enter", "execute"}, {"Tab", "pane"},
+		{"/", "search"}, {"C", "config"}, {"L", "log"}, {"r", "refresh"}, {"q", "quit"},
 	}
 	if m.activePane == paneConfig {
 		binds = []struct{ k, d string }{
-			{"Tab/↑↓", "navigate"},
-			{"←→", "pick option"},
-			{"Ctrl-S", "save & close"},
-			{"Esc", "cancel"},
+			{"Tab", "navigate"}, {"<>", "option"}, {"Ctrl-S", "save"}, {"Esc", "cancel"},
 		}
 	}
+	kSt  := lipgloss.NewStyle().Foreground(colorAccent).Background(colorSurface).Bold(true)
+	dSt  := lipgloss.NewStyle().Foreground(colorMuted).Background(colorSurface)
+	sep  := dSt.Render(" · ")
 	var parts []string
 	for _, b := range binds {
-		parts = append(parts, keyStyle.Render(b.k)+keyDescStyle.Render(" "+b.d))
+		parts = append(parts, kSt.Render(b.k)+dSt.Render(" "+b.d))
 	}
-	return lipgloss.NewStyle().
-		Width(m.width).Background(colorSurface).
-		Render(" " + strings.Join(parts, keyDescStyle.Render(" · ")))
+	return lipgloss.NewStyle().Width(m.width).Background(colorSurface).
+		Render(" " + strings.Join(parts, sep))
 }
 
 // ─── Run ─────────────────────────────────────────────────────────────────────
 
-// Run starts the Bubble Tea program.
 func Run(cfg *config.Config, client *asana.Client) error {
 	m := New(cfg, client)
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())

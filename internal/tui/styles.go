@@ -2,126 +2,59 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
-// ─── Theme definition ────────────────────────────────────────────────────────
-
 // Theme holds every color token used by the TUI.
 type Theme struct {
-	Name string
-
-	// Canvas
+	Name    string
 	Bg      lipgloss.Color
 	Surface lipgloss.Color
-
-	// Chrome
-	Border   lipgloss.Color
-	Accent   lipgloss.Color
+	Border  lipgloss.Color
+	Accent  lipgloss.Color
 	Selected lipgloss.Color
-
-	// Semantic
-	Text   lipgloss.Color
-	Muted  lipgloss.Color
-	Green  lipgloss.Color
-	Red    lipgloss.Color
-	Yellow lipgloss.Color
+	Text    lipgloss.Color
+	Muted   lipgloss.Color
+	Green   lipgloss.Color
+	Red     lipgloss.Color
+	Yellow  lipgloss.Color
 }
-
-// ─── Built-in themes ─────────────────────────────────────────────────────────
 
 var Themes = []Theme{
 	{
-		Name:     "dark",
-		Bg:       lipgloss.Color("#0d1117"),
-		Surface:  lipgloss.Color("#161b22"),
-		Border:   lipgloss.Color("#30363d"),
-		Accent:   lipgloss.Color("#58a6ff"),
-		Selected: lipgloss.Color("#1f6feb"),
-		Text:     lipgloss.Color("#e6edf3"),
-		Muted:    lipgloss.Color("#8b949e"),
-		Green:    lipgloss.Color("#3fb950"),
-		Red:      lipgloss.Color("#f85149"),
-		Yellow:   lipgloss.Color("#e3b341"),
+		Name: "dark", Bg: "#0d1117", Surface: "#161b22",
+		Border: "#30363d", Accent: "#58a6ff", Selected: "#1f6feb",
+		Text: "#e6edf3", Muted: "#8b949e", Green: "#3fb950", Red: "#f85149", Yellow: "#e3b341",
 	},
 	{
-		Name:     "light",
-		Bg:       lipgloss.Color("#ffffff"),
-		Surface:  lipgloss.Color("#f6f8fa"),
-		Border:   lipgloss.Color("#d0d7de"),
-		Accent:   lipgloss.Color("#0969da"),
-		Selected: lipgloss.Color("#ddf4ff"),
-		Text:     lipgloss.Color("#1f2328"),
-		Muted:    lipgloss.Color("#656d76"),
-		Green:    lipgloss.Color("#1a7f37"),
-		Red:      lipgloss.Color("#cf222e"),
-		Yellow:   lipgloss.Color("#9a6700"),
+		Name: "light", Bg: "#ffffff", Surface: "#f6f8fa",
+		Border: "#d0d7de", Accent: "#0969da", Selected: "#ddf4ff",
+		Text: "#1f2328", Muted: "#656d76", Green: "#1a7f37", Red: "#cf222e", Yellow: "#9a6700",
 	},
 	{
-		Name:     "homebrew",
-		Bg:       lipgloss.Color("#1a0a00"),
-		Surface:  lipgloss.Color("#2a1500"),
-		Border:   lipgloss.Color("#cc6600"),
-		Accent:   lipgloss.Color("#ff8c00"),
-		Selected: lipgloss.Color("#7a3300"),
-		Text:     lipgloss.Color("#ffcc99"),
-		Muted:    lipgloss.Color("#cc8844"),
-		Green:    lipgloss.Color("#66cc44"),
-		Red:      lipgloss.Color("#ff4444"),
-		Yellow:   lipgloss.Color("#ffcc00"),
+		Name: "homebrew", Bg: "#1a0a00", Surface: "#2a1500",
+		Border: "#cc6600", Accent: "#ff8c00", Selected: "#7a3300",
+		Text: "#ffcc99", Muted: "#cc8844", Green: "#66cc44", Red: "#ff4444", Yellow: "#ffcc00",
 	},
 	{
-		Name:     "dracula",
-		Bg:       lipgloss.Color("#282a36"),
-		Surface:  lipgloss.Color("#1e1f29"),
-		Border:   lipgloss.Color("#6272a4"),
-		Accent:   lipgloss.Color("#bd93f9"),
-		Selected: lipgloss.Color("#44475a"),
-		Text:     lipgloss.Color("#f8f8f2"),
-		Muted:    lipgloss.Color("#6272a4"),
-		Green:    lipgloss.Color("#50fa7b"),
-		Red:      lipgloss.Color("#ff5555"),
-		Yellow:   lipgloss.Color("#f1fa8c"),
+		Name: "dracula", Bg: "#282a36", Surface: "#1e1f29",
+		Border: "#6272a4", Accent: "#bd93f9", Selected: "#44475a",
+		Text: "#f8f8f2", Muted: "#6272a4", Green: "#50fa7b", Red: "#ff5555", Yellow: "#f1fa8c",
 	},
 	{
-		Name:     "solarized",
-		Bg:       lipgloss.Color("#002b36"),
-		Surface:  lipgloss.Color("#073642"),
-		Border:   lipgloss.Color("#586e75"),
-		Accent:   lipgloss.Color("#268bd2"),
-		Selected: lipgloss.Color("#094557"),
-		Text:     lipgloss.Color("#839496"),
-		Muted:    lipgloss.Color("#657b83"),
-		Green:    lipgloss.Color("#859900"),
-		Red:      lipgloss.Color("#dc322f"),
-		Yellow:   lipgloss.Color("#b58900"),
+		Name: "solarized", Bg: "#002b36", Surface: "#073642",
+		Border: "#586e75", Accent: "#268bd2", Selected: "#094557",
+		Text: "#839496", Muted: "#657b83", Green: "#859900", Red: "#dc322f", Yellow: "#b58900",
 	},
 	{
-		Name:     "nord",
-		Bg:       lipgloss.Color("#2e3440"),
-		Surface:  lipgloss.Color("#3b4252"),
-		Border:   lipgloss.Color("#4c566a"),
-		Accent:   lipgloss.Color("#88c0d0"),
-		Selected: lipgloss.Color("#434c5e"),
-		Text:     lipgloss.Color("#eceff4"),
-		Muted:    lipgloss.Color("#d8dee9"),
-		Green:    lipgloss.Color("#a3be8c"),
-		Red:      lipgloss.Color("#bf616a"),
-		Yellow:   lipgloss.Color("#ebcb8b"),
+		Name: "nord", Bg: "#2e3440", Surface: "#3b4252",
+		Border: "#4c566a", Accent: "#88c0d0", Selected: "#434c5e",
+		Text: "#eceff4", Muted: "#d8dee9", Green: "#a3be8c", Red: "#bf616a", Yellow: "#ebcb8b",
 	},
 	{
-		Name:     "monokai",
-		Bg:       lipgloss.Color("#272822"),
-		Surface:  lipgloss.Color("#1e1f1c"),
-		Border:   lipgloss.Color("#75715e"),
-		Accent:   lipgloss.Color("#66d9e8"),
-		Selected: lipgloss.Color("#49483e"),
-		Text:     lipgloss.Color("#f8f8f2"),
-		Muted:    lipgloss.Color("#75715e"),
-		Green:    lipgloss.Color("#a6e22e"),
-		Red:      lipgloss.Color("#f92672"),
-		Yellow:   lipgloss.Color("#e6db74"),
+		Name: "monokai", Bg: "#272822", Surface: "#1e1f1c",
+		Border: "#75715e", Accent: "#66d9e8", Selected: "#49483e",
+		Text: "#f8f8f2", Muted: "#75715e", Green: "#a6e22e", Red: "#f92672", Yellow: "#e6db74",
 	},
 }
 
-// ThemeByName returns a theme by name, defaulting to dark.
 func ThemeByName(name string) Theme {
 	for _, t := range Themes {
 		if t.Name == name {
@@ -131,7 +64,7 @@ func ThemeByName(name string) Theme {
 	return Themes[0]
 }
 
-// ─── Active style variables (set by setTheme) ─────────────────────────────────
+// ─── Active color variables ───────────────────────────────────────────────────
 
 var (
 	colorBg       lipgloss.Color
@@ -145,41 +78,16 @@ var (
 	colorText     lipgloss.Color
 	colorSelected lipgloss.Color
 
-	// Panel borders — Background set so lipgloss fills the inner canvas correctly.
+	// borderStyle and activeBorderStyle are the ONLY two pre-built styles kept
+	// at package level. Everything else is built inline in view.go to ensure
+	// Background is always set correctly. These two exist so the box container
+	// itself paints its background on any padding cells lipgloss adds.
 	borderStyle       lipgloss.Style
 	activeBorderStyle lipgloss.Style
-
-	taskItemStyle         lipgloss.Style
-	taskItemSelectedStyle lipgloss.Style
-	taskCompletedStyle    lipgloss.Style
-
-	detailHeaderStyle lipgloss.Style
-	detailKeyStyle    lipgloss.Style
-	detailValueStyle  lipgloss.Style
-
-	providerActiveStyle   lipgloss.Style
-	providerStyle         lipgloss.Style
-	providerSelectedStyle lipgloss.Style
-
-	statusBarStyle  lipgloss.Style
-	statusOKStyle   lipgloss.Style
-	statusErrStyle  lipgloss.Style
-	statusLoadStyle lipgloss.Style
-
-	keyStyle     lipgloss.Style
-	keyDescStyle lipgloss.Style
-
-	logStyle        lipgloss.Style
-	logSuccessStyle lipgloss.Style
-	logErrStyle     lipgloss.Style
-
-	inputStyle   lipgloss.Style
-	sectionStyle lipgloss.Style
 )
 
-// setTheme rebuilds every style variable from a Theme. Called whenever the
-// theme changes. Every style that renders content inside a panel explicitly
-// sets Background so no cell falls through to the terminal default.
+// setTheme rebuilds all package-level style variables. Called on startup and
+// whenever the theme changes.
 func setTheme(t Theme) {
 	colorBg       = t.Bg
 	colorSurface  = t.Surface
@@ -192,12 +100,6 @@ func setTheme(t Theme) {
 	colorText     = t.Text
 	colorSelected = t.Selected
 
-	// The UnsetBackground() call on the inner content is intentional: we let
-	// the border box's Background propagate. But lipgloss does NOT propagate
-	// background from the outer box into child Render calls — each child must
-	// set it explicitly. We do that everywhere in view.go; here we just make
-	// sure the box itself has the right canvas color so any leftover padding
-	// cells are also correct.
 	borderStyle = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorBorder).
@@ -207,75 +109,6 @@ func setTheme(t Theme) {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorAccent).
 		Background(colorBg)
-
-	// ── Task list ────────────────────────────────────────────────────────────
-	taskItemStyle = lipgloss.NewStyle().
-		Foreground(colorText).Background(colorBg).Padding(0, 1)
-
-	taskItemSelectedStyle = lipgloss.NewStyle().
-		Background(colorSelected).Foreground(colorText).Bold(true).Padding(0, 1)
-
-	taskCompletedStyle = lipgloss.NewStyle().
-		Foreground(colorMuted).Background(colorBg).Strikethrough(true).Padding(0, 1)
-
-	// ── Detail panel ─────────────────────────────────────────────────────────
-	detailHeaderStyle = lipgloss.NewStyle().
-		Foreground(colorAccent).Background(colorBg).Bold(true)
-
-	detailKeyStyle = lipgloss.NewStyle().
-		Foreground(colorYellow).Background(colorBg).Bold(true)
-
-	detailValueStyle = lipgloss.NewStyle().
-		Foreground(colorText).Background(colorBg)
-
-	// ── Provider / model panel ───────────────────────────────────────────────
-	providerActiveStyle = lipgloss.NewStyle().
-		Foreground(colorGreen).Background(colorBg).Bold(true)
-
-	providerStyle = lipgloss.NewStyle().
-		Foreground(colorText).Background(colorBg)
-
-	providerSelectedStyle = lipgloss.NewStyle().
-		Background(colorSelected).Foreground(colorText).Bold(true)
-
-	// ── Status bar ───────────────────────────────────────────────────────────
-	statusBarStyle = lipgloss.NewStyle().
-		Background(colorSurface).Foreground(colorMuted).Padding(0, 1)
-
-	statusOKStyle = lipgloss.NewStyle().
-		Background(colorSurface).Foreground(colorGreen).Bold(true).Padding(0, 1)
-
-	statusErrStyle = lipgloss.NewStyle().
-		Background(colorSurface).Foreground(colorRed).Bold(true).Padding(0, 1)
-
-	statusLoadStyle = lipgloss.NewStyle().
-		Background(colorSurface).Foreground(colorYellow).Bold(true).Padding(0, 1)
-
-	// ── Keybind bar ──────────────────────────────────────────────────────────
-	keyStyle = lipgloss.NewStyle().
-		Foreground(colorAccent).Background(colorSurface).Bold(true)
-
-	keyDescStyle = lipgloss.NewStyle().
-		Foreground(colorMuted).Background(colorSurface)
-
-	// ── Log panel ────────────────────────────────────────────────────────────
-	logStyle = lipgloss.NewStyle().
-		Foreground(colorText).Background(colorBg).Padding(0, 1)
-
-	logSuccessStyle = lipgloss.NewStyle().
-		Foreground(colorGreen).Background(colorBg).Padding(0, 1)
-
-	logErrStyle = lipgloss.NewStyle().
-		Foreground(colorRed).Background(colorBg).Padding(0, 1)
-
-	// ── Config screen ────────────────────────────────────────────────────────
-	inputStyle = lipgloss.NewStyle().
-		Foreground(colorYellow).Background(colorBg).Bold(true)
-
-	sectionStyle = lipgloss.NewStyle().
-		Foreground(colorMuted).Background(colorBg).Bold(true).Padding(0, 0, 0, 1)
 }
 
-func init() {
-	setTheme(Themes[0]) // default: dark
-}
+func init() { setTheme(Themes[0]) }
